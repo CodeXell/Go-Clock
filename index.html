@@ -166,6 +166,13 @@ html,body { height:100%; height:100dvh; overflow:hidden; font-family:'DM Sans',s
 .remote-status-code { font-family:'DM Mono',monospace; font-size:20px; font-weight:500; letter-spacing:.2em; color:var(--accent); flex:1; }
 .remote-copy-btn { background:none; border:1px solid rgba(200,169,110,.3); color:var(--accent); font-family:'DM Sans',sans-serif; font-size:11px; letter-spacing:.08em; text-transform:uppercase; padding:6px 12px; border-radius:100px; cursor:pointer; transition:all .2s; -webkit-appearance:none; appearance:none; }
 .remote-copy-btn:active { background:rgba(200,169,110,.15); }
+.attendee-list { margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+.attendee-row { display:flex; align-items:center; gap:10px; background:rgba(245,240,232,.04); border:1px solid rgba(245,240,232,.1); border-radius:12px; padding:10px; }
+.attendee-meta { flex:1; min-width:0; }
+.attendee-name { font-size:12px; font-weight:500; letter-spacing:.04em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.attendee-id { font-size:10px; opacity:.35; font-family:'DM Mono',monospace; margin-top:2px; }
+.role-pill { font-size:9px; letter-spacing:.12em; text-transform:uppercase; border:1px solid rgba(245,240,232,.15); border-radius:100px; padding:4px 9px; opacity:.8; }
+.role-select { background:rgba(245,240,232,.07); border:1px solid rgba(245,240,232,.12); color:var(--white); border-radius:10px; min-height:34px; padding:0 10px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
 
 /* ── dropdown ── */
 .custom-select-wrap { position:relative; }
@@ -385,7 +392,7 @@ html,body { height:100%; height:100dvh; overflow:hidden; font-family:'DM Sans',s
 
 <script type="module">
 import { initializeApp }    from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getFirestore, doc, setDoc, onSnapshot, deleteDoc }
+import { getFirestore, doc, setDoc, onSnapshot, deleteDoc, getDoc, updateDoc }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // ════════════════════════════════════════════════════════
@@ -627,6 +634,14 @@ function expire() {
 // TURN SWITCHING
 // ════════════════════════════════════════════════════════
 function switchTurn(fromPid) {
+  if(!canControlHalf(fromPid)) {
+    if(remoteSession && !applyingRemoteTap) showToast('You cannot use this clock');
+    return;
+  }
+  if(remoteSession && !remoteSession.isHost && !applyingRemoteTap){
+    sendRemoteAction('tap',{pid:fromPid});
+    return;
+  }
   if(state.phase==='expired') return;
   if(state.phase==='idle'){
     initPlayers(); updateDisplay(1); updateDisplay(2);
@@ -655,6 +670,7 @@ function startPlayer(pid) {
   state.interval=setInterval(tick,1000);
 }
 function togglePause() {
+  if(remoteSession && !remoteSession.isHost){ showToast('Only host can pause'); return; }
   if(state.phase==='idle'||state.phase==='expired') return;
   if(state.phase==='running'){
     state.phase='paused'; clearInterval(state.interval);
@@ -666,6 +682,7 @@ function togglePause() {
   updateHalfClasses(); pushRemoteState();
 }
 function resetGame() {
+  if(remoteSession && !remoteSession.isHost){ showToast('Only host can reset'); return; }
   clearInterval(state.interval); state.phase='idle'; state.active=null; initPlayers();
   document.getElementById('btn-pause').textContent='Pause';
   document.getElementById('expired-overlay').classList.remove('show');
@@ -796,7 +813,10 @@ function loadSettingsUI() {
   document.getElementById('layout-side').classList.toggle('selected',currentLayout==='side');
   renderRemoteSection();
 }
-function applyAndPlay() { const s=readTimeFields(); saveSettings(s); resetGame(); showClock(); }
+function applyAndPlay() {
+  if(remoteSession && !remoteSession.isHost){ showToast('Only host can change time settings'); return; }
+  const s=readTimeFields(); saveSettings(s); resetGame(); showClock();
+}
 
 // ════════════════════════════════════════════════════════
 // PRESETS
@@ -837,41 +857,62 @@ function renderPresets() {
 // ════════════════════════════════════════════════════════
 // REMOTE PLAY  (Firebase Firestore)
 // ════════════════════════════════════════════════════════
-let remoteSession = null; // { roomId, role, unsub }
+let remoteSession = null; // { roomId, userId, userName, isHost, assignedRole, unsub, lastActionTs }
 let ignoreNext    = false;
 let pushTimer     = null;
+let applyingRemoteTap = false;
 
-function makeRoomCode() {
-  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+function makeUserId() { return 'u'+Math.random().toString(36).slice(2,10); }
+function normalizeRoomName(name) { return (name||'').trim().toUpperCase().replace(/[^A-Z0-9 _-]/g,'').slice(0,20); }
+function roomRef() { return remoteSession?doc(db,'rooms',remoteSession.roomId):null; }
+function userRole() { return remoteSession?.isHost ? 'host' : (remoteSession?.assignedRole||'viewer'); }
+function canControlHalf(pid) {
+  const role=userRole();
+  if(!remoteSession) return true;
+  if(role==='host') return true;
+  if(role==='black') return pid===1;
+  if(role==='white') return pid===2;
+  return false;
 }
 
 function encodeState() {
   return {
-    phase:state.phase, active:state.active, moves:state.moves,
-    p1:state.p1?{...state.p1}:null, p2:state.p2?{...state.p2}:null,
-    settings:{...settings}, ts:Date.now(),
+    state:{
+      phase:state.phase, active:state.active, moves:state.moves,
+      p1:state.p1?{...state.p1}:null, p2:state.p2?{...state.p2}:null,
+    },
+    settings:{...settings},
+    updatedAt:Date.now(),
   };
 }
 
-function pushRemoteState() {
-  if(!remoteSession) return;
+async function pushRemoteState() {
+  if(!remoteSession?.isHost) return;
   clearTimeout(pushTimer);
   pushTimer=setTimeout(async ()=>{
-    try { ignoreNext=true; await setDoc(doc(db,'rooms',remoteSession.roomId),encodeState()); }
-    catch(e){ console.warn('Remote push error',e); }
-  }, 100);
+    try {
+      ignoreNext=true;
+      await setDoc(roomRef(), encodeState(), { merge:true });
+    } catch(e){ console.warn('Remote push error',e); }
+  }, 90);
+}
+
+async function sendRemoteAction(type, payload={}) {
+  if(!remoteSession || remoteSession.isHost) return;
+  try {
+    await setDoc(roomRef(), { pendingAction:{ type, payload, by:remoteSession.userId, at:Date.now() } }, { merge:true });
+  } catch(e){ console.warn('Remote action error',e); }
 }
 
 function applyRemoteSnapshot(data) {
   if(!data) return;
-  // Sync settings
   if(data.settings?.system){ settings={...DEFAULT_SETTINGS,...data.settings}; saveSettings(settings); updateTapBubbles(); }
-  // Restore state
+  const snapState=data.state;
+  if(!snapState) return;
   clearInterval(state.interval);
-  state.phase=data.phase; state.active=data.active; state.moves=data.moves||0;
-  state.p1=data.p1?{...data.p1}:makePlayer();
-  state.p2=data.p2?{...data.p2}:makePlayer();
+  state.phase=snapState.phase; state.active=snapState.active; state.moves=snapState.moves||0;
+  state.p1=snapState.p1?{...snapState.p1}:makePlayer();
+  state.p2=snapState.p2?{...snapState.p2}:makePlayer();
   if(state.phase==='running'){ state.interval=setInterval(tick,1000); document.getElementById('btn-pause').textContent='Pause'; }
   else if(state.phase==='paused'){ document.getElementById('btn-pause').textContent='Resume'; }
   else if(state.phase==='expired'){ showExpired(state.active); }
@@ -879,60 +920,125 @@ function applyRemoteSnapshot(data) {
   updateDisplay(1); updateDisplay(2); updateHalfClasses(); updateMoveCounter();
 }
 
-async function startHosting() {
-  const roomId=makeRoomCode();
-  remoteSession={roomId,role:'host',unsub:null};
+function hostHandlePendingAction(data) {
+  if(!remoteSession?.isHost || !data?.pendingAction) return;
+  const act=data.pendingAction;
+  if(!act.at || act.at===remoteSession.lastActionTs) return;
+  remoteSession.lastActionTs=act.at;
+  const attendee=data.attendees?.[act.by];
+  const role=(act.by===remoteSession.userId)?'host':(attendee?.role||'viewer');
+  if(act.type==='tap'){
+    const pid=act.payload?.pid;
+    if((role==='black'&&pid!==1)||(role==='white'&&pid!==2)||role==='viewer') return;
+    applyingRemoteTap=true;
+    switchTurn(pid);
+    applyingRemoteTap=false;
+  }
+}
+
+async function startHosting(roomName, hostName) {
+  roomName=normalizeRoomName(roomName);
+  hostName=(hostName||'Host').trim().slice(0,24);
+  if(!roomName){ showToast('Enter a room name'); return; }
+  if(!hostName){ showToast('Enter your name'); return; }
+  const userId=makeUserId();
+  remoteSession={roomId:roomName,userId,userName:hostName,isHost:true,assignedRole:'host',unsub:null,lastActionTs:null};
   try {
-    ignoreNext=true;
-    await setDoc(doc(db,'rooms',roomId),encodeState());
-    remoteSession.unsub=onSnapshot(doc(db,'rooms',roomId),snap=>{
+    await setDoc(roomRef(), {
+      roomName,
+      hostId:userId,
+      hostName,
+      attendees:{ [userId]:{ name:hostName, role:'host', joinedAt:Date.now() } },
+      ...encodeState(),
+    }, { merge:true });
+    remoteSession.unsub=onSnapshot(roomRef(), snap=>{
       if(!snap.exists()) return;
-      if(ignoreNext){ignoreNext=false;return;}
-      applyRemoteSnapshot(snap.data());
+      const data=snap.data();
+      hostHandlePendingAction(data);
+      renderRemoteSection(data);
+      updateRemoteUI(data);
     });
-    updateRemoteUI(); renderRemoteSection(); showToast('Room ready — share code '+roomId);
+    updateRemoteUI(); renderRemoteSection(); showToast('Room ready: '+roomName);
   } catch(e){ remoteSession=null; showToast('Could not create room'); console.error(e); }
 }
 
-async function joinRoom(roomId) {
-  roomId=roomId.toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if(roomId.length<4){ showToast('Enter a valid room code'); return; }
-  remoteSession={roomId,role:'guest',unsub:null};
-  remoteSession.unsub=onSnapshot(doc(db,'rooms',roomId),snap=>{
-    if(!snap.exists()){ showToast('Room not found'); leaveRoom(); return; }
+async function joinRoom(roomName, userName) {
+  roomName=normalizeRoomName(roomName);
+  userName=(userName||'Guest').trim().slice(0,24);
+  if(!roomName){ showToast('Type a room name'); return; }
+  if(!userName){ showToast('Type your name'); return; }
+  const userId=makeUserId();
+  const ref=doc(db,'rooms',roomName);
+  const snap=await getDoc(ref);
+  if(!snap.exists()){ showToast('Room not found'); return; }
+  remoteSession={roomId:roomName,userId,userName,isHost:false,assignedRole:'viewer',unsub:null,lastActionTs:null};
+  try {
+    await updateDoc(ref, { [`attendees.${userId}`]:{ name:userName, role:'viewer', joinedAt:Date.now() } });
+  } catch(e){ console.warn(e); }
+  remoteSession.unsub=onSnapshot(ref,s=>{
+    if(!s.exists()){ showToast('Room closed'); leaveRoom(false); return; }
+    const data=s.data();
+    remoteSession.assignedRole=(data.attendees?.[remoteSession.userId]?.role)||'viewer';
     if(ignoreNext){ignoreNext=false;return;}
-    applyRemoteSnapshot(snap.data());
+    applyRemoteSnapshot(data);
+    renderRemoteSection(data);
+    updateRemoteUI(data);
   });
-  updateRemoteUI(); renderRemoteSection(); showToast('Joined room '+roomId);
+  updateRemoteUI(); renderRemoteSection(); showToast('Joined '+roomName);
 }
 
-function leaveRoom() {
+async function setAttendeeRole(uid, role) {
+  if(!remoteSession?.isHost) return;
+  try { await updateDoc(roomRef(), { [`attendees.${uid}.role`]: role }); }
+  catch(e){ console.warn('Role update failed',e); }
+}
+
+async function leaveRoom(show=true) {
   if(remoteSession?.unsub) remoteSession.unsub();
-  remoteSession=null; updateRemoteUI(); renderRemoteSection(); showToast('Left session');
+  const prev=remoteSession;
+  remoteSession=null;
+  if(prev){
+    try {
+      if(prev.isHost) await deleteDoc(doc(db,'rooms',prev.roomId));
+      else await updateDoc(doc(db,'rooms',prev.roomId), { [`attendees.${prev.userId}`]: null });
+    } catch(e){}
+  }
+  updateRemoteUI(); renderRemoteSection(); if(show) showToast('Left session');
 }
 
 function copyCode() {
   if(!remoteSession) return;
-  navigator.clipboard?.writeText(remoteSession.roomId).then(()=>showToast('Code copied!')).catch(()=>showToast(remoteSession.roomId));
+  navigator.clipboard?.writeText(remoteSession.roomId).then(()=>showToast('Room copied')).catch(()=>showToast(remoteSession.roomId));
 }
 
-function updateRemoteUI() {
+function updateRemoteUI(snapshotData=null) {
   const bar=document.getElementById('remote-bar');
   if(remoteSession){
     bar.classList.add('active');
     document.getElementById('remote-code-display').textContent=remoteSession.roomId;
     const badge=document.getElementById('remote-badge');
-    badge.textContent=remoteSession.role==='host'?'Hosting':'Joined';
-    badge.className='remote-badge '+(remoteSession.role==='host'?'host':'guest');
-  } else {
-    bar.classList.remove('active');
-  }
+    const r=userRole();
+    badge.textContent=remoteSession.isHost?'Host':r[0].toUpperCase()+r.slice(1);
+    badge.className='remote-badge '+(remoteSession.isHost?'host':'guest');
+  } else bar.classList.remove('active');
 }
 
-function renderRemoteSection() {
+function renderAttendees(data) {
+  const attendees=Object.entries(data?.attendees||{}).filter(([,v])=>v&&typeof v==='object');
+  if(!attendees.length) return '<div style="font-size:11px;opacity:.35;font-family:DM Mono,monospace;">No attendees yet.</div>';
+  return `<div class="attendee-list">${attendees.map(([uid,a])=>{
+    const role=(a.role||'viewer');
+    const isSelf=uid===remoteSession?.userId;
+    const select=remoteSession?.isHost && !isSelf
+      ? `<select class="role-select" onchange="setAttendeeRole('${uid}',this.value)"><option value="black" ${role==='black'?'selected':''}>Black</option><option value="white" ${role==='white'?'selected':''}>White</option><option value="viewer" ${role==='viewer'?'selected':''}>Viewer</option></select>`
+      : `<span class="role-pill">${role}</span>`;
+    return `<div class="attendee-row"><div class="attendee-meta"><div class="attendee-name">${a.name||'Guest'}${isSelf?' (You)':''}</div><div class="attendee-id">${uid.slice(0,8)}</div></div>${select}</div>`;
+  }).join('')}</div>`;
+}
+
+function renderRemoteSection(snapshotData=null) {
   const el=document.getElementById('remote-section-ui');
   if(remoteSession){
-    // Active session UI
     el.innerHTML=`
       <div class="remote-status-row">
         <div class="remote-status-code">${remoteSession.roomId}</div>
@@ -940,23 +1046,27 @@ function renderRemoteSection() {
         <button class="remote-action-btn" style="margin-left:4px;" onclick="leaveRoom()">Leave</button>
       </div>
       <div style="font-size:11px;font-family:'DM Mono',monospace;opacity:.35;margin-top:8px;line-height:1.6;">
-        ${remoteSession.role==='host'?'You created this room. Share the 6-letter code with your opponent — they tap "Join" in their Settings and enter it. Both clocks stay in sync.':'Connected to a remote clock. Any tap on either device is reflected on both.'}
-      </div>`;
+        ${remoteSession.isHost?'Host controls official game state and assigns roles below.':'Host controls official time. Your assigned role determines which clock you can tap.'}
+      </div>
+      ${remoteSession.isHost?`<div class="section-label" style="margin-top:14px;">Attendees & Roles</div>${renderAttendees(snapshotData||{})}`:''}
+      ${!remoteSession.isHost?`<div style="margin-top:10px;font-size:11px;opacity:.55;">Your role: <strong style="color:var(--accent);text-transform:uppercase;letter-spacing:.08em;">${userRole()}</strong></div>`:''}`;
   } else {
-    // Lobby UI: Host + Join side by side
     el.innerHTML=`
       <div class="remote-panels">
         <div class="remote-panel">
           <div class="remote-panel-title">Host</div>
-          <div class="remote-panel-desc">Create a room and get a 6-letter code to share.</div>
-          <button class="remote-action-btn accent" onclick="startHosting()">Create Room</button>
+          <div class="remote-panel-desc">Room Name is required. Host time is authoritative.</div>
+          <input class="remote-code-input" id="host-room-input" placeholder="ROOM NAME" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="characters" style="margin-bottom:8px;letter-spacing:.08em;text-transform:none;text-align:left;">
+          <input class="remote-code-input" id="host-name-input" placeholder="Your name" maxlength="24" spellcheck="false" autocomplete="off" style="margin-bottom:8px;letter-spacing:.04em;text-transform:none;text-align:left;">
+          <button class="remote-action-btn accent" onclick="startHosting(document.getElementById('host-room-input').value,document.getElementById('host-name-input').value)">Create Room</button>
         </div>
         <div class="remote-panel">
           <div class="remote-panel-title">Join</div>
-          <div class="remote-panel-desc">Enter the code your opponent shared.</div>
-          <div class="remote-join-row">
-            <input class="remote-code-input" id="join-code-input" placeholder="ABC123" maxlength="6" spellcheck="false" autocomplete="off" autocapitalize="characters">
-            <button class="remote-action-btn accent" onclick="joinRoom(document.getElementById('join-code-input').value)">Join</button>
+          <div class="remote-panel-desc">Type Room Name and your name before joining.</div>
+          <div class="remote-join-row" style="flex-direction:column;">
+            <input class="remote-code-input" id="join-room-input" placeholder="ROOM NAME" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="characters" style="letter-spacing:.08em;text-transform:none;text-align:left;">
+            <input class="remote-code-input" id="join-name-input" placeholder="Your name" maxlength="24" spellcheck="false" autocomplete="off" style="letter-spacing:.04em;text-transform:none;text-align:left;">
+            <button class="remote-action-btn accent" onclick="joinRoom(document.getElementById('join-room-input').value,document.getElementById('join-name-input').value)">Join</button>
           </div>
         </div>
       </div>`;
@@ -1025,7 +1135,7 @@ window.showClock=showClock; window.setLayout=setLayout; window.toggleDropdown=to
 window.applyAndPlay=applyAndPlay; window.saveCurrentAsPreset=saveCurrentAsPreset;
 window.deletePreset=deletePreset; window.closeModal=closeModal;
 window.handleModalBackdropClick=handleModalBackdropClick;
-window.startHosting=startHosting; window.joinRoom=joinRoom; window.leaveRoom=leaveRoom; window.copyCode=copyCode;
+window.startHosting=startHosting; window.joinRoom=joinRoom; window.leaveRoom=leaveRoom; window.copyCode=copyCode; window.setAttendeeRole=setAttendeeRole;
 
 // ════════════════════════════════════════════════════════
 // INIT
