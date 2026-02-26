@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Go Clock</title>
+
+<!-- ✅ Favicon -->
+<link rel="icon" type="image/png" href="/favicon.png">
+
+<!-- ✅ Safari PWA Icon (CRITICAL for Home Screen icon) -->
+<link rel="apple-touch-icon" href="/favicon.png">
+
+<!-- ✅ Manifest for PWA -->
+<link rel="manifest" href="/manifest.json">
+
+<!-- ✅ Theme Color (Controls browser + PWA UI color) -->
+<meta name="theme-color" content="#000000">
+
+<!-- ✅ PWA Enabling for iOS -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --black: #0a0a0a;
+    --white: #f5f0e8;
+    --accent: #c8a96e;
+    --danger: #e05a4e;
+    --radius: 24px;
+    --bar-h: 68px;
+    --transition: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  html {
+    /* Prevent iOS font size inflation on rotate */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  html, body {
+    height: 100%;
+    /* Use dvh so iOS chrome bar doesn't cut layout */
+    height: 100dvh;
+    overflow: hidden;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--black); color: var(--white);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation; /* kills 300ms tap delay */
+  }
+
+  /* ─── PAGES ──────────────────────────────────── */
+  .page {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  .page.hidden { opacity: 0; pointer-events: none; transform: translateY(16px); }
+
+  /* ─── CLOCK HALVES ──────────────────────────── */
+  .clock-half {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    cursor: pointer; position: relative;
+    transition: background 0.3s ease, box-shadow 0.4s ease,
+                transform 0.4s var(--transition), filter 0.3s ease;
+    outline: none;
+    gap: clamp(10px, 2vh, 16px);
+    padding: clamp(16px, 4vw, 30px);
+    /* Ensure the whole half is a tap target — no subregion misses */
+    -webkit-tap-highlight-color: transparent;
+  }
+  .clock-half.top    { transform-origin: center top;    border-radius: 0 0 var(--radius) var(--radius); }
+  .clock-half.bottom { transform-origin: center bottom; border-radius: var(--radius) var(--radius) 0 0; }
+  .clock-half.inactive { background: var(--black); color: var(--white); filter: brightness(0.7); }
+  .clock-half.active   { background: var(--white); color: var(--black); }
+  .clock-half.active.bottom {
+    box-shadow: 0 -20px 80px rgba(245,240,232,0.22), 0 -4px 20px rgba(245,240,232,0.12);
+    transform: translateY(-5px);
+  }
+  .clock-half.active.top {
+    box-shadow: 0 20px 80px rgba(245,240,232,0.22), 0 4px 20px rgba(245,240,232,0.12);
+    transform: translateY(5px);
+  }
+
+  /* ── Danger edge flash ── */
+  .clock-half.danger-pulse::after {
+    content: ''; position: absolute; inset: 0; border-radius: inherit;
+    pointer-events: none; animation: dangerEdge 1s ease-in-out infinite;
+  }
+  @keyframes dangerEdge {
+    0%,100% { box-shadow: inset 0 0 0px   0px  rgba(224,90,78,0);    }
+    50%      { box-shadow: inset 0 0 60px  16px rgba(224,90,78,0.32); }
+  }
+
+  /* Top half inner rotates 180° so text faces that player */
+  .clock-half.top .inner {
+    transform: rotate(180deg);
+    display: flex; flex-direction: column; align-items: center;
+    gap: clamp(10px, 2vh, 14px);
+  }
+
+  .player-label {
+    font-size: clamp(9px, 2vw, 11px);
+    font-weight: 500; letter-spacing: 0.25em; text-transform: uppercase; opacity: 0.5;
+  }
+
+  .time-display {
+    font-family: 'DM Mono', monospace;
+    /* Scales beautifully from tiny phones to tablets, portrait & landscape */
+    font-size: clamp(44px, 16vmin, 100px);
+    font-weight: 300; letter-spacing: -0.02em; line-height: 1;
+    transition: color 0.3s, transform 0.15s;
+  }
+  .time-display.pulse { animation: timePulse 0.08s ease; }
+  @keyframes timePulse { 0%{transform:scale(1)} 50%{transform:scale(0.97)} 100%{transform:scale(1)} }
+
+  .sub-info {
+    font-family: 'DM Mono', monospace;
+    font-size: clamp(11px, 2.5vw, 13px);
+    letter-spacing: 0.05em; opacity: 0.55;
+    display: flex; align-items: center; gap: 8px; min-height: 18px;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .byo-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; opacity: 0.4;
+    transition: opacity 0.2s, transform 0.2s; flex-shrink: 0;
+  }
+  .byo-dot.used { opacity: 0.12; }
+  .byo-dot.current { opacity: 1; transform: scale(1.4); animation: dotPulse 1s ease-in-out infinite; }
+  @keyframes dotPulse { 0%,100%{transform:scale(1.4)} 50%{transform:scale(1)} }
+
+  .byo-progress {
+    height: 3px; background: rgba(245,240,232,0.1);
+    width: min(80%, 200px); border-radius: 2px; overflow: hidden;
+  }
+  .clock-half.active .byo-progress { background: rgba(0,0,0,0.1); }
+  .byo-progress-fill { height: 100%; background: currentColor; transition: width 0.9s linear; border-radius: 2px; }
+
+  /* Tap bubbles */
+  .tap-to-start { display: flex; flex-direction: row; align-items: center; gap: 8px; pointer-events: none; flex-wrap: wrap; justify-content: center; }
+  .tap-bubble {
+    background: rgba(245,240,232,0.1); border: 1px solid rgba(245,240,232,0.18);
+    border-radius: 100px; padding: 7px 16px;
+    font-size: clamp(9px, 2.2vw, 11px); font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase;
+    color: currentColor; animation: tapFade 1.8s ease-in-out infinite;
+  }
+  .tap-bubble.secondary {
+    font-size: clamp(8px, 2vw, 10px); letter-spacing: 0.14em;
+    background: rgba(245,240,232,0.05); border-color: rgba(245,240,232,0.1); animation-delay: 0.35s;
+  }
+  @keyframes tapFade { 0%,100%{opacity:0.3;transform:translateY(2px)} 50%{opacity:0.85;transform:translateY(0)} }
+
+  /* ─── CONTROLS BAR ──────────────────────────── */
+  .controls-bar {
+    height: var(--bar-h); background: var(--black);
+    display: flex; align-items: center; justify-content: center;
+    gap: clamp(8px, 3vw, 16px);
+    z-index: 20; flex-shrink: 0;
+    border-top: 1px solid rgba(245,240,232,0.06);
+    border-bottom: 1px solid rgba(245,240,232,0.06);
+    position: relative;
+    /* Safe area insets for notched iPhones */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .logo {
+    position: absolute; left: max(16px, env(safe-area-inset-left, 16px));
+    font-family: 'Playfair Display', serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.08em; color: rgba(245,240,232,0.2); text-transform: uppercase;
+    /* Hide on very small screens to avoid crowding */
+  }
+  @media (max-width: 360px) { .logo { display: none; } }
+
+  .ctrl-btn {
+    background: rgba(245,240,232,0.06); border: 1px solid rgba(245,240,232,0.1);
+    color: var(--white); font-family: 'DM Sans', sans-serif;
+    font-size: clamp(11px, 2.5vw, 12px); font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    /* Minimum 44×44px touch target */
+    min-height: 44px; padding: 0 clamp(14px, 4vw, 22px);
+    border-radius: 100px; cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    white-space: nowrap;
+    /* Remove iOS button styling */
+    -webkit-appearance: none; appearance: none;
+  }
+  .ctrl-btn:active { transform: scale(0.94); background: rgba(245,240,232,0.1); }
+  @media (hover: hover) {
+    .ctrl-btn:hover { background: rgba(245,240,232,0.12); border-color: rgba(245,240,232,0.2); transform: translateY(-1px); }
+  }
+  .ctrl-btn.danger { color: var(--danger); border-color: rgba(224,90,78,0.3); }
+  .ctrl-btn.danger:active { background: rgba(224,90,78,0.12); }
+  @media (hover: hover) { .ctrl-btn.danger:hover { background: rgba(224,90,78,0.1); border-color: rgba(224,90,78,0.5); } }
+  .ctrl-btn.accent { color: var(--accent); border-color: rgba(200,169,110,0.3); }
+  .ctrl-btn.accent:active { background: rgba(200,169,110,0.12); }
+  @media (hover: hover) { .ctrl-btn.accent:hover { background: rgba(200,169,110,0.1); border-color: rgba(200,169,110,0.5); } }
+
+  .settings-icon-btn {
+    position: absolute; right: max(16px, env(safe-area-inset-right, 16px));
+    background: none; border: 1px solid rgba(245,240,232,0.1);
+    color: rgba(245,240,232,0.5);
+    /* 44×44 touch target */
+    width: 44px; height: 44px;
+    border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; font-size: 17px;
+    -webkit-appearance: none; appearance: none;
+  }
+  .settings-icon-btn:active { color: var(--white); background: rgba(245,240,232,0.1); }
+  @media (hover: hover) { .settings-icon-btn:hover { color: var(--white); background: rgba(245,240,232,0.06); } }
+
+  /* ─── LANDSCAPE PHONE MODE ──────────────────── */
+  /* When landscape on a small device, shrink bar and scale fonts */
+  @media (max-height: 500px) and (orientation: landscape) {
+    :root { --bar-h: 52px; }
+    .ctrl-btn { min-height: 36px; font-size: 10px; padding: 0 12px; }
+    .settings-icon-btn { width: 36px; height: 36px; font-size: 14px; }
+    .time-display { font-size: clamp(32px, 12vmin, 64px); }
+    .sub-info { font-size: 10px; }
+    .player-label { font-size: 9px; }
+    .tap-bubble { padding: 5px 10px; font-size: 9px; }
+    .logo { display: none; }
+  }
+
+  /* ─── RIPPLE ────────────────────────────────── */
+  .ripple {
+    position: absolute; border-radius: 50%; background: rgba(255,255,255,0.18);
+    transform: scale(0); animation: rippleAnim 0.5s ease-out forwards;
+    pointer-events: none; z-index: 5;
+  }
+  @keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
+
+  /* ─── EXPIRED OVERLAY ───────────────────────── */
+  .expired-overlay {
+    position: fixed; inset: 0; background: var(--danger);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; gap: 12px;
+    padding: 24px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+  .expired-overlay.show { opacity: 1; pointer-events: all; }
+  .expired-title { font-family: 'Playfair Display', serif; font-size: clamp(28px, 10vw, 72px); font-weight: 900; color: white; letter-spacing: -0.02em; text-align: center; }
+  .expired-sub { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255,255,255,0.55); text-align: center; }
+  .expired-reset {
+    margin-top: 16px; background: white; color: var(--danger); border: none;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 16px 36px; border-radius: 100px; cursor: pointer;
+    min-height: 52px; transition: transform 0.2s;
+    -webkit-appearance: none; appearance: none;
+  }
+  .expired-reset:active { transform: scale(0.97); }
+
+  /* ─── TOAST ─────────────────────────────────── */
+  .toast {
+    position: fixed; bottom: max(24px, env(safe-area-inset-bottom, 24px)); left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--white); color: var(--black);
+    font-size: 13px; font-weight: 500; padding: 12px 24px;
+    border-radius: 100px; z-index: 200; transition: transform 0.4s var(--transition);
+    white-space: nowrap; max-width: calc(100vw - 40px);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ════════════════════════════════════════════════
+     SETTINGS PAGE
+  ════════════════════════════════════════════════ */
+  #settings-page {
+    background: var(--black); overflow-y: auto; overflow-x: hidden; padding: 0;
+    /* Smooth momentum scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .settings-header {
+    padding: max(48px, env(safe-area-inset-top, 48px)) 20px 24px;
+    border-bottom: 1px solid rgba(245,240,232,0.08);
+    position: sticky; top: 0; background: var(--black); z-index: 10;
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  }
+  .settings-title { font-family: 'Playfair Display', serif; font-size: clamp(22px, 6vw, 38px); font-weight: 900; letter-spacing: -0.02em; }
+  .settings-subtitle { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.3; margin-top: 4px; }
+  .back-btn {
+    background: none; border: 1px solid rgba(245,240,232,0.15); color: var(--white);
+    font-family: 'DM Sans', sans-serif; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0 18px; border-radius: 100px; cursor: pointer; transition: background 0.2s;
+    flex-shrink: 0; min-height: 44px; display: flex; align-items: center;
+    -webkit-appearance: none; appearance: none;
+  }
+  .back-btn:active { background: rgba(245,240,232,0.08); }
+
+  .settings-body {
+    padding: 24px 20px max(60px, env(safe-area-inset-bottom, 60px));
+    max-width: 600px; margin: 0 auto;
+  }
+
+  .section-label {
+    font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+    opacity: 0.3; margin-bottom: 12px; margin-top: 32px; font-weight: 500;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  /* ── Custom Dropdown ── */
+  .custom-select-wrap { position: relative; }
+  .custom-select-trigger {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(245,240,232,0.05); border: 1px solid rgba(245,240,232,0.12);
+    border-radius: 14px; padding: 16px 18px; cursor: pointer; transition: all 0.2s; gap: 12px;
+    min-height: 60px; /* generous touch target */
+  }
+  .custom-select-trigger:active { background: rgba(245,240,232,0.08); }
+  @media (hover: hover) { .custom-select-trigger:hover { background: rgba(245,240,232,0.08); border-color: rgba(245,240,232,0.2); } }
+  .custom-select-trigger.open { border-color: var(--accent); background: rgba(200,169,110,0.07); border-radius: 14px 14px 0 0; border-bottom-color: transparent; }
+
+  .cst-left { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+  .cst-value { font-size: clamp(13px, 3.5vw, 15px); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cst-desc  { font-size: clamp(10px, 2.5vw, 11px); opacity: 0.4; font-family: 'DM Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .cst-arrow {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 1px solid rgba(245,240,232,0.12);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; opacity: 0.5; flex-shrink: 0;
+    transition: transform 0.3s var(--transition), opacity 0.2s;
+  }
+  .custom-select-trigger.open .cst-arrow { transform: rotate(180deg); opacity: 0.8; }
+
+  .custom-select-panel {
+    position: absolute; left: 0; right: 0; top: 100%; z-index: 50;
+    background: #131313; border: 1px solid rgba(200,169,110,0.3); border-top: none;
+    border-radius: 0 0 14px 14px; overflow: hidden;
+    max-height: 0; transition: max-height 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease;
+    opacity: 0; pointer-events: none;
+  }
+  .custom-select-panel.open { max-height: 440px; opacity: 1; pointer-events: all; }
+
+  .csp-option {
+    display: flex; align-items: center; gap: 14px; padding: 14px 18px; cursor: pointer;
+    transition: background 0.15s; border-bottom: 1px solid rgba(245,240,232,0.04);
+    min-height: 60px; /* touch target */
+  }
+  .csp-option:last-child { border-bottom: none; }
+  .csp-option:active { background: rgba(245,240,232,0.06); }
+  @media (hover: hover) { .csp-option:hover { background: rgba(245,240,232,0.04); } }
+  .csp-option.selected { background: rgba(200,169,110,0.07); }
+
+  .csp-icon {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+    background: rgba(245,240,232,0.05); border: 1px solid rgba(245,240,232,0.07);
+  }
+  .csp-option.selected .csp-icon { background: rgba(200,169,110,0.14); border-color: rgba(200,169,110,0.28); }
+  .csp-text { flex: 1; min-width: 0; }
+  .csp-name { font-size: clamp(13px, 3.5vw, 14px); font-weight: 500; }
+  .csp-hint { font-size: clamp(10px, 2.5vw, 11px); opacity: 0.37; font-family: 'DM Mono', monospace; margin-top: 2px; }
+  .csp-option.selected .csp-name { color: var(--accent); }
+  .csp-check { font-size: 13px; color: var(--accent); opacity: 0; transition: opacity 0.2s; flex-shrink: 0; }
+  .csp-option.selected .csp-check { opacity: 1; }
+
+  /* ── Time input rows ── */
+  .time-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 0; border-bottom: 1px solid rgba(245,240,232,0.06);
+    flex-wrap: nowrap;
+  }
+  .time-row-lhs { flex: 1; min-width: 0; }
+  .time-row-label { font-size: clamp(13px, 3.5vw, 14px); font-weight: 400; opacity: 0.85; }
+  .time-row-sublabel { font-size: clamp(10px, 2.5vw, 11px); opacity: 0.32; margin-top: 2px; font-family: 'DM Mono', monospace; line-height: 1.4; }
+  .time-input-group { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+  .time-input, .count-input {
+    background: rgba(245,240,232,0.07); border: 1px solid rgba(245,240,232,0.12);
+    color: var(--white); font-family: 'DM Mono', monospace;
+    font-size: clamp(16px, 4vw, 20px); font-weight: 300;
+    /* 56px wide, 48px tall — comfortably tappable */
+    width: 56px; min-height: 48px; text-align: center;
+    padding: 0 4px; border-radius: 12px; outline: none;
+    transition: border-color 0.2s, background 0.2s;
+    -moz-appearance: textfield;
+    /* Prevent iOS zoom on focus (keep font ≥16px) */
+    font-size: max(16px, 1em);
+  }
+  .time-input::-webkit-inner-spin-button, .time-input::-webkit-outer-spin-button,
+  .count-input::-webkit-inner-spin-button, .count-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .time-input:focus, .count-input:focus { border-color: var(--accent); background: rgba(200,169,110,0.08); }
+  .time-colon { opacity: 0.28; font-family: 'DM Mono', monospace; font-size: 18px; flex-shrink: 0; }
+  .row-unit { margin-left: 6px; font-size: 11px; opacity: 0.3; white-space: nowrap; flex-shrink: 0; }
+
+  /* ── Rules box ── */
+  .rules-box { background: rgba(200,169,110,0.05); border: 1px solid rgba(200,169,110,0.13); border-radius: 14px; padding: 16px 18px; margin-top: 12px; }
+  .rules-box p { font-size: clamp(12px, 3vw, 13px); line-height: 1.75; opacity: 0.6; }
+  .rules-box strong { color: var(--accent); font-weight: 500; }
+
+  /* ── Presets grid ── */
+  .presets-grid {
+    /* On mobile: 2 columns; on wider screens: auto-fill */
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px; margin-bottom: 16px;
+  }
+  @media (min-width: 480px) { .presets-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; } }
+
+  .preset-card {
+    background: rgba(245,240,232,0.04); border: 1px solid rgba(245,240,232,0.08);
+    border-radius: 14px; padding: 14px; cursor: pointer;
+    transition: background 0.2s, border-color 0.2s; position: relative; overflow: hidden;
+    min-height: 76px; /* tap target */
+  }
+  .preset-card:active { background: rgba(245,240,232,0.08); }
+  @media (hover: hover) { .preset-card:hover { background: rgba(245,240,232,0.08); border-color: rgba(245,240,232,0.15); } }
+  .preset-card.selected { background: rgba(200,169,110,0.1); border-color: var(--accent); }
+  .preset-card .preset-name { font-size: clamp(12px, 3vw, 13px); font-weight: 500; margin-bottom: 3px; }
+  .preset-card .preset-system { font-size: 9px; opacity: 0.38; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+  .preset-card .preset-desc { font-family: 'DM Mono', monospace; font-size: 10px; opacity: 0.38; line-height: 1.5; }
+  /* Delete button: always visible on touch devices, hover-only on pointer devices */
+  .preset-card .delete-preset {
+    position: absolute; top: 6px; right: 6px;
+    background: rgba(224,90,78,0.08); border: none; color: rgba(224,90,78,0.5);
+    cursor: pointer; font-size: 11px;
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, color 0.2s;
+    opacity: 0; pointer-events: none;
+  }
+  /* Touch: always show */
+  @media (hover: none) { .preset-card .delete-preset { opacity: 1; pointer-events: auto; } }
+  /* Mouse: show on hover */
+  @media (hover: hover) { .preset-card:hover .delete-preset { opacity: 1; pointer-events: auto; } }
+  .preset-card .delete-preset:active { background: rgba(224,90,78,0.2); color: var(--danger); }
+
+  .add-preset-btn {
+    background: rgba(245,240,232,0.03); border: 1px dashed rgba(245,240,232,0.13);
+    border-radius: 14px; padding: 16px; cursor: pointer; transition: all 0.2s;
+    color: rgba(245,240,232,0.35); font-size: 13px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: 'DM Sans', sans-serif; width: 100%; min-height: 52px;
+    -webkit-appearance: none; appearance: none;
+  }
+  .add-preset-btn:active { color: var(--white); background: rgba(245,240,232,0.06); }
+  @media (hover: hover) { .add-preset-btn:hover { color: var(--white); border-color: rgba(245,240,232,0.28); background: rgba(245,240,232,0.05); } }
+
+  /* ── Save bar ── */
+  .save-load-bar {
+    display: flex; gap: 10px; margin-top: 28px; padding-top: 24px;
+    border-top: 1px solid rgba(245,240,232,0.08);
+  }
+  .save-btn {
+    flex: 1; background: var(--accent); color: var(--black); border: none;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase; padding: 0 20px;
+    border-radius: 100px; cursor: pointer; transition: all 0.2s ease;
+    min-height: 52px; -webkit-appearance: none; appearance: none;
+  }
+  .save-btn:active { transform: scale(0.97); background: #bf9f60; }
+  @media (hover: hover) { .save-btn:hover { background: #d4b97e; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(200,169,110,0.3); } }
+
+  .play-btn {
+    background: var(--white); color: var(--black); border: none;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase; padding: 0 26px;
+    border-radius: 100px; cursor: pointer; transition: all 0.2s ease;
+    min-height: 52px; -webkit-appearance: none; appearance: none;
+  }
+  .play-btn:active { transform: scale(0.97); background: #ddd8d0; }
+  @media (hover: hover) { .play-btn:hover { background: #e8e3db; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(245,240,232,0.2); } }
+</style>
+</head>
+<body>
+
+<!-- ═══ CLOCK PAGE ═══════════════════════════════════════ -->
+<div id="clock-page" class="page">
+
+  <!-- Player 1 (top, rotated 180°) -->
+  <div class="clock-half top inactive" id="p1-half" tabindex="0">
+    <div class="inner">
+      <div class="player-label">Black</div>
+      <div class="time-display" id="p1-time">1:00</div>
+      <div class="sub-info" id="p1-sub">
+        <div class="byo-dot" id="p1-d0"></div>
+        <div class="byo-dot" id="p1-d1"></div>
+        <div class="byo-dot" id="p1-d2"></div>
+        <div class="byo-dot" id="p1-d3"></div>
+        <div class="byo-dot" id="p1-d4"></div>
+        <span id="p1-sub-text" style="margin-left:4px;"></span>
+      </div>
+      <div class="byo-progress" id="p1-progress" style="display:none;">
+        <div class="byo-progress-fill" id="p1-fill"></div>
+      </div>
+      <div class="tap-to-start" id="tap-hint-1">
+        <div class="tap-bubble">Tap to Begin</div>
+        <div class="tap-bubble secondary" id="tap-system-1">Byo-Yomi</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls bar -->
+  <div class="controls-bar">
+    <span class="logo">Go Clock</span>
+    <button class="ctrl-btn danger" onclick="resetGame()">Reset</button>
+    <button class="ctrl-btn accent" id="btn-pause" onclick="togglePause()">Pause</button>
+    <button class="settings-icon-btn" onclick="showSettings()" title="Settings">⚙</button>
+  </div>
+
+  <!-- Player 2 (bottom) -->
+  <div class="clock-half bottom inactive" id="p2-half" tabindex="0">
+    <div class="player-label">White</div>
+    <div class="time-display" id="p2-time">1:00</div>
+    <div class="sub-info" id="p2-sub">
+      <div class="byo-dot" id="p2-d0"></div>
+      <div class="byo-dot" id="p2-d1"></div>
+      <div class="byo-dot" id="p2-d2"></div>
+      <div class="byo-dot" id="p2-d3"></div>
+      <div class="byo-dot" id="p2-d4"></div>
+      <span id="p2-sub-text" style="margin-left:4px;"></span>
+    </div>
+    <div class="byo-progress" id="p2-progress" style="display:none;">
+      <div class="byo-progress-fill" id="p2-fill"></div>
+    </div>
+    <div class="tap-to-start" id="tap-hint-2">
+      <div class="tap-bubble">Tap to Begin</div>
+      <div class="tap-bubble secondary" id="tap-system-2">Byo-Yomi</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SETTINGS PAGE ═══════════════════════════════════ -->
+<div id="settings-page" class="page hidden">
+  <div class="settings-header">
+    <div>
+      <div class="settings-title">Settings</div>
+      <div class="settings-subtitle" id="sh-subtitle">Japanese Byo-Yomi</div>
+    </div>
+    <button class="back-btn" onclick="showClock()">← Back</button>
+  </div>
+
+  <div class="settings-body">
+
+    <div class="section-label">Saved Presets</div>
+    <div class="presets-grid" id="presets-grid"></div>
+    <button class="add-preset-btn" onclick="saveCurrentAsPreset()">+ Save Current as Preset</button>
+
+    <div class="section-label">Time System</div>
+    <div class="custom-select-wrap" id="ts-wrap">
+      <div class="custom-select-trigger" id="ts-trigger" onclick="toggleDropdown()">
+        <div class="cst-left">
+          <div class="cst-value" id="ts-value">Japanese Byo-Yomi</div>
+          <div class="cst-desc"  id="ts-desc">Main time + timed periods per move</div>
+        </div>
+        <div class="cst-arrow">▾</div>
+      </div>
+      <div class="custom-select-panel" id="ts-panel"></div>
+    </div>
+
+    <div id="time-fields"></div>
+
+    <div class="section-label">Rules</div>
+    <div class="rules-box"><p id="rules-text"></p></div>
+
+    <div class="save-load-bar">
+      <button class="save-btn" onclick="saveAndApply()">Apply Settings</button>
+      <button class="play-btn" onclick="applyAndPlay()">▶ Play</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ EXPIRED OVERLAY ══════════════════════════════════ -->
+<div class="expired-overlay" id="expired-overlay">
+  <div class="expired-sub">Time has run out</div>
+  <div class="expired-title" id="expired-who">Black loses</div>
+  <button class="expired-reset" onclick="resetGame()">Reset & Play Again</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// TIME SYSTEMS
+// ════════════════════════════════════════════════════════
+const TIME_SYSTEMS = {
+  japanese: {
+    id:'japanese', name:'Japanese Byo-Yomi', icon:'🎌',
+    shortDesc:'Main time + timed periods per move',
+    defaults:{ mainTime:60, byoTime:30, byoCount:5 },
+    fields:[
+      { id:'mainTime',  label:'Main Time',       sub:'Total thinking time before byo-yomi', type:'mmss' },
+      { id:'byoTime',   label:'Period Duration',  sub:'Time limit per byo-yomi period',      type:'mmss' },
+      { id:'byoCount',  label:'Periods',          sub:'Number of byo-yomi periods per player', type:'count', unit:'periods' },
+    ],
+    rules:`<strong>Japanese Byo-Yomi</strong> — Each player has fixed main thinking time. Once exhausted, they enter byo-yomi: a series of timed periods. <strong>Each move must be completed within one period.</strong> Finishing a move in time resets the period clock. Running out loses one period. Lose all periods and you lose the game.`,
+    tapLabel:'Byo-Yomi',
+  },
+  sudden: {
+    id:'sudden', name:'Sudden Death', icon:'☠️',
+    shortDesc:'One fixed clock — no overtime',
+    defaults:{ mainTime:300 },
+    fields:[
+      { id:'mainTime', label:'Total Time', sub:'All the time each player has — no overtime', type:'mmss' },
+    ],
+    rules:`<strong>Sudden Death</strong> — Each player has a single block of time. <strong>When it runs out, they lose immediately.</strong> No overtime, no byo-yomi, no second chances. Every second matters.`,
+    tapLabel:'Sudden Death',
+  },
+  canadian: {
+    id:'canadian', name:'Canadian Byo-Yomi', icon:'🍁',
+    shortDesc:'Main time + moves-per-period overtime',
+    defaults:{ mainTime:60, byoTime:60, movesPerPeriod:10 },
+    fields:[
+      { id:'mainTime',      label:'Main Time',       sub:'Thinking time before byo-yomi begins',  type:'mmss' },
+      { id:'byoTime',       label:'Period Duration',  sub:'Time to complete the required moves',    type:'mmss' },
+      { id:'movesPerPeriod',label:'Moves per Period', sub:'Moves that must be made each period',   type:'count', unit:'moves' },
+    ],
+    rules:`<strong>Canadian Byo-Yomi</strong> — After main time, players must complete a <strong>set number of moves within a single period</strong>. The period resets only after all required moves are made in time. Running out means loss. Periods repeat until the game ends.`,
+    tapLabel:'Canadian',
+  },
+  fischer: {
+    id:'fischer', name:'Fischer Increment', icon:'⏱',
+    shortDesc:'Seconds added to clock after every move',
+    defaults:{ mainTime:60, increment:10 },
+    fields:[
+      { id:'mainTime',  label:'Starting Time', sub:'Clock time each player starts with', type:'mmss' },
+      { id:'increment', label:'Increment',      sub:'Seconds added to your clock after every move', type:'count', unit:'sec / move' },
+    ],
+    rules:`<strong>Fischer Increment</strong> — Each player starts with a set amount of time. <strong>After every move, a fixed number of seconds is added to their clock.</strong> Quick, confident moves build time. Running out at any point means loss.`,
+    tapLabel:'Fischer',
+  },
+  simple: {
+    id:'simple', name:'Simple (Per Move)', icon:'⏳',
+    shortDesc:'Fixed time limit for each individual move',
+    defaults:{ moveTime:30 },
+    fields:[
+      { id:'moveTime', label:'Time per Move', sub:'Each player must move within this limit — resets every turn', type:'mmss' },
+    ],
+    rules:`<strong>Simple / Per Move</strong> — Each player has a fixed clock for <strong>every single move</strong>. The clock resets completely at the start of each turn. No accumulation — use it or lose it, every time. Fail to move in time and you lose.`,
+    tapLabel:'Per Move',
+  },
+};
+
+const SYSTEM_ORDER = ['japanese','sudden','canadian','fischer','simple'];
+
+const DEFAULT_SETTINGS = { system:'japanese', mainTime:60, byoTime:30, byoCount:5, movesPerPeriod:10, increment:10, moveTime:30 };
+
+// ════════════════════════════════════════════════════════
+// STORAGE
+// ════════════════════════════════════════════════════════
+function loadSettings() {
+  try { const s=JSON.parse(localStorage.getItem('goclock_s3')); if(s&&s.system) return {...DEFAULT_SETTINGS,...s}; } catch(e){}
+  return {...DEFAULT_SETTINGS};
+}
+function saveSettings(s) { localStorage.setItem('goclock_s3',JSON.stringify(s)); settings=s; }
+function loadPresets() {
+  try { const p=JSON.parse(localStorage.getItem('goclock_p3')); if(Array.isArray(p)&&p.length) return p; } catch(e){}
+  return [{ name:'Default', ...DEFAULT_SETTINGS }];
+}
+function savePresets(p) { localStorage.setItem('goclock_p3',JSON.stringify(p)); presets=p; }
+
+let settings = loadSettings();
+let presets  = loadPresets();
+
+// ════════════════════════════════════════════════════════
+// GAME STATE
+// ════════════════════════════════════════════════════════
+let state = { phase:'idle', active:null, p1:null, p2:null, interval:null };
+
+function makePlayer() {
+  const s=settings, sys=s.system;
+  if (sys==='japanese') return { main:s.mainTime, byoLeft:s.byoTime, byoCount:s.byoCount, byoTotal:s.byoTime, inByo:s.mainTime===0 };
+  if (sys==='sudden')   return { main:s.mainTime };
+  if (sys==='canadian') return { main:s.mainTime, byoLeft:s.byoTime, byoTotal:s.byoTime, movesInPeriod:0, movesRequired:s.movesPerPeriod, inByo:s.mainTime===0 };
+  if (sys==='fischer')  return { main:s.mainTime, inc:s.increment };
+  if (sys==='simple')   return { main:s.moveTime, moveTotal:s.moveTime };
+}
+function initPlayers() { state.p1=makePlayer(); state.p2=makePlayer(); }
+
+// ════════════════════════════════════════════════════════
+// DISPLAY
+// ════════════════════════════════════════════════════════
+function fmt(secs) {
+  const neg=secs<0; secs=Math.abs(Math.floor(secs));
+  const m=Math.floor(secs/60), s=secs%60;
+  return (neg?'-':'')+(m>0 ? m+':'+String(s).padStart(2,'0') : String(s));
+}
+
+function updateDisplay(pid) {
+  const p   = pid===1 ? state.p1 : state.p2;
+  const sys = settings.system;
+  const tEl = document.getElementById(`p${pid}-time`);
+  const sTxt= document.getElementById(`p${pid}-sub-text`);
+  const pEl = document.getElementById(`p${pid}-progress`);
+  const fEl = document.getElementById(`p${pid}-fill`);
+
+  // Reset dots & bar
+  for(let i=0;i<5;i++) document.getElementById(`p${pid}-d${i}`).style.display='none';
+  pEl.style.display='none';
+
+  if (sys==='japanese') {
+    if (!p.inByo) {
+      tEl.textContent=fmt(p.main);
+      sTxt.textContent=`× ${p.byoCount} byo-yomi`;
+      renderDots(pid, p.byoCount, settings.byoCount, false);
+    } else {
+      tEl.textContent=fmt(p.byoLeft);
+      sTxt.textContent=p.byoCount>1?`${p.byoCount} periods left`:'Last period!';
+      renderDots(pid, p.byoCount, settings.byoCount, true);
+      pEl.style.display='block'; fEl.style.width=Math.max(0,(p.byoLeft/p.byoTotal)*100)+'%';
+    }
+  } else if (sys==='sudden') {
+    tEl.textContent=fmt(p.main); sTxt.textContent='Sudden death';
+  } else if (sys==='canadian') {
+    if (!p.inByo) {
+      tEl.textContent=fmt(p.main); sTxt.textContent=`${settings.movesPerPeriod} moves / period`;
+    } else {
+      tEl.textContent=fmt(p.byoLeft);
+      const mv=p.movesRequired-p.movesInPeriod;
+      sTxt.textContent=`${mv} move${mv!==1?'s':''} left in period`;
+      pEl.style.display='block'; fEl.style.width=Math.max(0,(p.byoLeft/p.byoTotal)*100)+'%';
+    }
+  } else if (sys==='fischer') {
+    tEl.textContent=fmt(p.main); sTxt.textContent=`+${p.inc}s / move`;
+  } else if (sys==='simple') {
+    tEl.textContent=fmt(p.main); sTxt.textContent='per move';
+    pEl.style.display='block'; fEl.style.width=Math.max(0,(p.main/p.moveTotal)*100)+'%';
+  }
+}
+
+function renderDots(pid, remaining, total, inByo) {
+  const show=Math.min(total,5);
+  for(let i=0;i<5;i++) {
+    const d=document.getElementById(`p${pid}-d${i}`);
+    if(i>=show){ d.style.display='none'; continue; }
+    d.style.display=''; d.className='byo-dot';
+    if(remaining<=i) d.classList.add('used');
+    else if(inByo && i===remaining-1) d.classList.add('current');
+  }
+}
+
+function updateHalfClasses() {
+  const p1h=document.getElementById('p1-half'), p2h=document.getElementById('p2-half');
+  const t1=document.getElementById('tap-hint-1'), t2=document.getElementById('tap-hint-2');
+  p1h.classList.remove('active','inactive'); p2h.classList.remove('active','inactive');
+  if (state.phase==='idle') {
+    p1h.classList.add('inactive'); p2h.classList.add('inactive');
+    t1.style.display='flex'; t2.style.display='flex';
+  } else {
+    t1.style.display='none'; t2.style.display='none';
+    if(state.active===1){ p1h.classList.add('active'); p2h.classList.add('inactive'); }
+    else if(state.active===2){ p2h.classList.add('active'); p1h.classList.add('inactive'); }
+    else { p1h.classList.add('inactive'); p2h.classList.add('inactive'); }
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// TICK
+// ════════════════════════════════════════════════════════
+
+// Returns the beep threshold for a byo-yomi period:
+// periods <= 10s → last 5s; periods > 10s → last 10s
+function byoBeepThreshold() {
+  return settings.byoTime <= 10 ? 5 : 10;
+}
+
+function tick() {
+  const pid = state.active;
+  const p   = pid===1 ? state.p1 : state.p2;
+  const sys = settings.system;
+
+  if (sys==='japanese') {
+    if (!p.inByo) {
+      p.main -= 1;
+      if (p.main <= 0) { p.main=0; p.inByo=true; setDanger(pid,false); }
+      else if (p.main <= 10) {
+        playBeep(1 - p.main/10);
+        setDanger(pid, true);
+        pulseTime(pid);
+      } else {
+        setDanger(pid, false);
+      }
+    }
+    if (p.inByo) {
+      p.byoLeft -= 1;
+      if (p.byoLeft <= 0) {
+        p.byoCount -= 1;
+        if (p.byoCount <= 0) { setDanger(pid,false); expire(); return; }
+        p.byoLeft = p.byoTotal;
+        setDanger(pid, false); // new period — reset
+      }
+      const thresh = byoBeepThreshold();
+      if (p.byoLeft > 0 && p.byoLeft <= thresh) {
+        playBeep(1 - p.byoLeft / thresh);
+        setDanger(pid, true);
+        pulseTime(pid);
+      } else if (p.byoLeft > thresh) {
+        setDanger(pid, false);
+      }
+    }
+
+  } else if (sys==='sudden') {
+    p.main -= 1;
+    if (p.main <= 0) { setDanger(pid,false); expire(); return; }
+    if (p.main <= 10) {
+      playBeep(1 - p.main/10);
+      setDanger(pid, true);
+      pulseTime(pid);
+    } else {
+      setDanger(pid, false);
+    }
+
+  } else if (sys==='canadian') {
+    if (!p.inByo) {
+      p.main -= 1;
+      if (p.main <= 0) { p.main=0; p.inByo=true; p.byoLeft=p.byoTotal; p.movesInPeriod=0; setDanger(pid,false); }
+      else if (p.main <= 10) {
+        playBeep(1 - p.main/10);
+        setDanger(pid, true);
+        pulseTime(pid);
+      } else {
+        setDanger(pid, false);
+      }
+    } else {
+      p.byoLeft -= 1;
+      if (p.byoLeft <= 0) { setDanger(pid,false); expire(); return; }
+      const thresh = byoBeepThreshold();
+      if (p.byoLeft <= thresh) {
+        playBeep(1 - p.byoLeft / thresh);
+        setDanger(pid, true);
+        pulseTime(pid);
+      } else {
+        setDanger(pid, false);
+      }
+    }
+
+  } else if (sys==='fischer') {
+    p.main -= 1;
+    if (p.main <= 0) { setDanger(pid,false); expire(); return; }
+    if (p.main <= 10) {
+      playBeep(1 - p.main/10);
+      setDanger(pid, true);
+      pulseTime(pid);
+    } else {
+      setDanger(pid, false);
+    }
+
+  } else if (sys==='simple') {
+    p.main -= 1;
+    if (p.main <= 0) { setDanger(pid,false); expire(); return; }
+    // Simple: treat the whole move like a byo-yomi period
+    const thresh = byoBeepThreshold();
+    if (p.main <= thresh) {
+      playBeep(1 - p.main / thresh);
+      setDanger(pid, true);
+      pulseTime(pid);
+    } else {
+      setDanger(pid, false);
+    }
+  }
+
+  updateDisplay(pid);
+}
+
+function pulseTime(pid) {
+  const el=document.getElementById(`p${pid}-time`);
+  el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+}
+
+function expire() {
+  clearInterval(state.interval); state.phase='expired';
+  updateDisplay(state.active); updateHalfClasses(); showExpired(state.active);
+}
+
+// ════════════════════════════════════════════════════════
+// TURN SWITCHING
+// ════════════════════════════════════════════════════════
+function switchTurn(fromPid) {
+  if (state.phase==='expired') return;
+
+  if (state.phase==='idle') {
+    initPlayers(); updateDisplay(1); updateDisplay(2);
+    setDanger(1, false); setDanger(2, false);
+    playPop(); createRipple(fromPid);
+    startPlayer(fromPid===1?2:1); return;
+  }
+
+  if (state.phase==='paused') return;
+  if (state.active!==fromPid) return;
+
+  const p=fromPid===1?state.p1:state.p2, sys=settings.system;
+
+  if (sys==='japanese'&&p.inByo) p.byoLeft=p.byoTotal;
+  if (sys==='canadian'&&p.inByo) {
+    p.movesInPeriod+=1;
+    if(p.movesInPeriod>=p.movesRequired){ p.movesInPeriod=0; p.byoLeft=p.byoTotal; }
+  }
+  if (sys==='fischer') p.main+=p.inc;
+  if (sys==='simple') p.main=p.moveTotal;
+
+  // Clear danger flash from the player who just moved
+  setDanger(fromPid, false);
+
+  playPop(); createRipple(fromPid);
+  startPlayer(fromPid===1?2:1);
+}
+
+function startPlayer(pid) {
+  if(settings.system==='simple'){ const np=pid===1?state.p1:state.p2; np.main=np.moveTotal; }
+  state.active=pid; state.phase='running';
+  updateHalfClasses(); clearInterval(state.interval);
+  state.interval=setInterval(tick,1000);
+}
+
+function togglePause() {
+  if(state.phase==='idle'||state.phase==='expired') return;
+  if(state.phase==='running'){
+    state.phase='paused'; clearInterval(state.interval);
+    document.getElementById('btn-pause').textContent='Resume';
+  } else {
+    state.phase='running'; state.interval=setInterval(tick,1000);
+    document.getElementById('btn-pause').textContent='Pause';
+  }
+  updateHalfClasses();
+}
+
+function resetGame() {
+  clearInterval(state.interval); state.phase='idle'; state.active=null; initPlayers();
+  document.getElementById('btn-pause').textContent='Pause';
+  document.getElementById('expired-overlay').classList.remove('show');
+  setDanger(1, false); setDanger(2, false);
+  updateDisplay(1); updateDisplay(2); updateHalfClasses(); updateTapBubbles();
+}
+
+function cancelGame() { resetGame(); showToast('Game cancelled'); }
+
+function showExpired(pid) {
+  document.getElementById('expired-who').textContent=(pid===1?'Black':'White')+' loses on time';
+  document.getElementById('expired-overlay').classList.add('show');
+}
+
+// ════════════════════════════════════════════════════════
+// AUDIO
+// ════════════════════════════════════════════════════════
+let audioCtx;
+function getAudio(){ if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+function playPop(){
+  try {
+    const ctx=getAudio(),now=ctx.currentTime;
+    [[800,200,0.3,0.08,'square'],[1200,600,0.15,0.05,'sine']].forEach(([f1,f2,g,d,t])=>{
+      const o=ctx.createOscillator(),gn=ctx.createGain();
+      o.type=t; o.frequency.setValueAtTime(f1,now); o.frequency.exponentialRampToValueAtTime(f2,now+d);
+      gn.gain.setValueAtTime(g,now); gn.gain.exponentialRampToValueAtTime(0.001,now+d);
+      o.connect(gn); gn.connect(ctx.destination); o.start(now); o.stop(now+d);
+    });
+  }catch(e){}
+}
+
+function playBeep(urgency) {
+  // urgency 0..1: higher = shorter, shriller beep (counts down from 10→1)
+  try {
+    const ctx=getAudio(), now=ctx.currentTime;
+    // Frequency rises as urgency increases: 480 Hz at urgency=0, 880 Hz at urgency=1
+    const freq = 480 + urgency * 400;
+    const dur  = 0.07 + (1 - urgency) * 0.04; // 0.11s → 0.07s
+    const o=ctx.createOscillator(), gn=ctx.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(freq, now);
+    gn.gain.setValueAtTime(0.22, now);
+    gn.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    o.connect(gn); gn.connect(ctx.destination);
+    o.start(now); o.stop(now + dur);
+  } catch(e) {}
+}
+
+function setDanger(pid, on) {
+  const el = document.getElementById(`p${pid}-half`);
+  el.classList.toggle('danger-pulse', on);
+}
+
+// ════════════════════════════════════════════════════════
+// RIPPLE
+// ════════════════════════════════════════════════════════
+function createRipple(pid) {
+  const half=document.getElementById(`p${pid}-half`);
+  const r=document.createElement('div'); r.className='ripple';
+  r.style.cssText='width:120px;height:120px;left:50%;top:50%;margin-left:-60px;margin-top:-60px;';
+  half.appendChild(r); setTimeout(()=>r.remove(),600);
+}
+
+// ════════════════════════════════════════════════════════
+// DROPDOWN
+// ════════════════════════════════════════════════════════
+let dropdownOpen=false;
+let currentSystem=settings.system;
+
+function toggleDropdown() {
+  dropdownOpen=!dropdownOpen;
+  document.getElementById('ts-trigger').classList.toggle('open',dropdownOpen);
+  document.getElementById('ts-panel').classList.toggle('open',dropdownOpen);
+}
+function closeDropdown() {
+  dropdownOpen=false;
+  document.getElementById('ts-trigger').classList.remove('open');
+  document.getElementById('ts-panel').classList.remove('open');
+}
+function buildDropdown() {
+  const panel=document.getElementById('ts-panel'); panel.innerHTML='';
+  SYSTEM_ORDER.forEach(id=>{
+    const sys=TIME_SYSTEMS[id];
+    const opt=document.createElement('div');
+    opt.className='csp-option'+(id===currentSystem?' selected':'');
+    opt.dataset.id=id;
+    opt.innerHTML=`
+      <div class="csp-icon">${sys.icon}</div>
+      <div class="csp-text"><div class="csp-name">${sys.name}</div><div class="csp-hint">${sys.shortDesc}</div></div>
+      <div class="csp-check">✓</div>`;
+    opt.addEventListener('click',()=>selectSystem(id));
+    panel.appendChild(opt);
+  });
+}
+function selectSystem(id) {
+  currentSystem=id;
+  const sys=TIME_SYSTEMS[id];
+  document.getElementById('ts-value').textContent=sys.name;
+  document.getElementById('ts-desc').textContent=sys.shortDesc;
+  document.querySelectorAll('.csp-option').forEach(o=>o.classList.toggle('selected',o.dataset.id===id));
+  buildTimeFields(id); buildRulesBox(id);
+  document.getElementById('sh-subtitle').textContent=sys.name;
+  closeDropdown();
+}
+
+// ════════════════════════════════════════════════════════
+// TIME FIELDS
+// ════════════════════════════════════════════════════════
+function buildTimeFields(sysId) {
+  const sys=TIME_SYSTEMS[sysId];
+  const container=document.getElementById('time-fields');
+  container.innerHTML='';
+  if(!sys.fields.length) return;
+
+  const lbl=document.createElement('div');
+  lbl.className='section-label'; lbl.textContent='Time Settings'; lbl.style.marginTop='28px';
+  container.appendChild(lbl);
+
+  sys.fields.forEach(f=>{
+    const val=settings[f.id]!==undefined?settings[f.id]:sys.defaults[f.id];
+    const row=document.createElement('div'); row.className='time-row';
+    let inputHTML='';
+    if(f.type==='mmss'){
+      const m=Math.floor(val/60),s=val%60;
+      inputHTML=`<div class="time-input-group">
+        <input class="time-input" type="number" id="f-${f.id}-m" min="0" max="999" value="${m}" title="Minutes">
+        <span class="time-colon">:</span>
+        <input class="time-input" type="number" id="f-${f.id}-s" min="0" max="59" value="${s}" title="Seconds">
+      </div>`;
+    } else {
+      inputHTML=`<div class="time-input-group">
+        <input class="count-input" type="number" id="f-${f.id}" min="1" max="999" value="${val}">
+        <span class="row-unit">${f.unit||''}</span>
+      </div>`;
+    }
+    row.innerHTML=`<div class="time-row-lhs"><div class="time-row-label">${f.label}</div><div class="time-row-sublabel">${f.sub}</div></div>${inputHTML}`;
+    container.appendChild(row);
+  });
+}
+
+function buildRulesBox(sysId) {
+  document.getElementById('rules-text').innerHTML=TIME_SYSTEMS[sysId].rules;
+}
+
+function readTimeFields() {
+  const sys=TIME_SYSTEMS[currentSystem];
+  const out={system:currentSystem};
+  sys.fields.forEach(f=>{
+    if(f.type==='mmss'){
+      const m=parseInt(document.getElementById(`f-${f.id}-m`).value)||0;
+      const s=parseInt(document.getElementById(`f-${f.id}-s`).value)||0;
+      out[f.id]=m*60+s;
+    } else {
+      out[f.id]=Math.max(1,parseInt(document.getElementById(`f-${f.id}`).value)||1);
+    }
+  });
+  return {...DEFAULT_SETTINGS,...out};
+}
+
+// ════════════════════════════════════════════════════════
+// SETTINGS PAGE
+// ════════════════════════════════════════════════════════
+function loadSettingsUI() {
+  currentSystem=settings.system;
+  const sys=TIME_SYSTEMS[currentSystem];
+  document.getElementById('ts-value').textContent=sys.name;
+  document.getElementById('ts-desc').textContent=sys.shortDesc;
+  document.getElementById('sh-subtitle').textContent=sys.name;
+  buildDropdown(); buildTimeFields(currentSystem); buildRulesBox(currentSystem);
+}
+
+function saveAndApply() {
+  const s=readTimeFields(); saveSettings(s); resetGame(); showToast('Settings applied');
+}
+function applyAndPlay() { saveAndApply(); showClock(); }
+
+// ════════════════════════════════════════════════════════
+// PRESETS
+// ════════════════════════════════════════════════════════
+function fmtDur(secs) {
+  if(secs>=60&&secs%60===0) return Math.floor(secs/60)+'m';
+  if(secs>=60) return Math.floor(secs/60)+'m'+(secs%60)+'s';
+  return secs+'s';
+}
+function presetLabel(p) {
+  const sys=p.system;
+  if(sys==='japanese') return `${fmtDur(p.mainTime)} + ${p.byoCount}×${fmtDur(p.byoTime)}`;
+  if(sys==='sudden')   return `${fmtDur(p.mainTime)} SD`;
+  if(sys==='canadian') return `${fmtDur(p.mainTime)} + ${p.movesPerPeriod}mv/${fmtDur(p.byoTime)}`;
+  if(sys==='fischer')  return `${fmtDur(p.mainTime)} +${p.increment}s`;
+  if(sys==='simple')   return `${fmtDur(p.moveTime)} / move`;
+  return '';
+}
+
+function saveCurrentAsPreset() {
+  const s=readTimeFields();
+  const name=prompt('Preset name:',presetLabel(s));
+  if(!name) return;
+  presets.push({name,...s}); savePresets(presets); renderPresets(); showToast(`"${name}" saved`);
+}
+function deletePreset(idx){ presets.splice(idx,1); savePresets(presets); renderPresets(); }
+function loadPreset(idx) {
+  const p=presets[idx]; settings={...DEFAULT_SETTINGS,...p}; saveSettings(settings);
+  loadSettingsUI(); renderPresets(); showToast(`Loaded "${p.name}"`);
+}
+function renderPresets() {
+  const grid=document.getElementById('presets-grid'); grid.innerHTML='';
+  presets.forEach((p,i)=>{
+    const card=document.createElement('div');
+    const isSel=(p.system===settings.system && presetLabel(p)===presetLabel(settings));
+    card.className='preset-card'+(isSel?' selected':'');
+    const sysInfo=TIME_SYSTEMS[p.system];
+    card.innerHTML=`
+      <div class="preset-name">${p.name}</div>
+      <div class="preset-system">${sysInfo?.icon||''} ${sysInfo?.name||p.system}</div>
+      <div class="preset-desc">${presetLabel(p)}</div>
+      ${i>0?`<button class="delete-preset" onclick="event.stopPropagation();deletePreset(${i})">✕</button>`:''}`;
+    card.addEventListener('click',()=>loadPreset(i));
+    grid.appendChild(card);
+  });
+}
+
+// ════════════════════════════════════════════════════════
+// TAP BUBBLES
+// ════════════════════════════════════════════════════════
+function updateTapBubbles() {
+  const label=TIME_SYSTEMS[settings.system]?.tapLabel||'';
+  document.getElementById('tap-system-1').textContent=label;
+  document.getElementById('tap-system-2').textContent=label;
+}
+
+// ════════════════════════════════════════════════════════
+// PAGE NAV
+// ════════════════════════════════════════════════════════
+function showSettings() {
+  if(state.phase==='running') togglePause();
+  document.getElementById('clock-page').classList.add('hidden');
+  document.getElementById('settings-page').classList.remove('hidden');
+  loadSettingsUI(); renderPresets();
+}
+function showClock() {
+  document.getElementById('settings-page').classList.add('hidden');
+  document.getElementById('clock-page').classList.remove('hidden');
+}
+
+// ════════════════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+// ════════════════════════════════════════════════════════
+// EVENTS
+// ════════════════════════════════════════════════════════
+function handleHalfInteraction(pid, e) {
+  // Prevent ghost click after touchstart
+  if (e.type === 'touchstart') { e.preventDefault(); }
+  switchTurn(pid);
+}
+
+document.getElementById('p1-half').addEventListener('touchstart', e => handleHalfInteraction(1, e), { passive: false });
+document.getElementById('p2-half').addEventListener('touchstart', e => handleHalfInteraction(2, e), { passive: false });
+document.getElementById('p1-half').addEventListener('click', e => { if (!e.isTrusted || e._fromTouch) return; switchTurn(1); });
+document.getElementById('p2-half').addEventListener('click', e => { if (!e.isTrusted || e._fromTouch) return; switchTurn(2); });
+
+// Mark click events that follow a touchstart so we can ignore the ghost
+['p1-half','p2-half'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('touchend', () => {
+    // Set a brief flag to suppress the synthetic click
+    el._suppressClick = true;
+    setTimeout(() => { el._suppressClick = false; }, 500);
+  }, { passive: true });
+  el.addEventListener('click', e => {
+    if (el._suppressClick) e.stopImmediatePropagation();
+  }, true);
+});
+
+document.addEventListener('touchmove', e => {
+  // Prevent page scroll/bounce on the clock screen
+  if (!document.getElementById('settings-page').classList.contains('hidden')) return;
+  e.preventDefault();
+}, { passive: false });
+
+document.addEventListener('click', e => {
+  if(dropdownOpen && !document.getElementById('ts-wrap').contains(e.target)) closeDropdown();
+});
+
+document.addEventListener('keydown',e=>{
+  if(!document.getElementById('settings-page').classList.contains('hidden')) return;
+  if(e.code==='Space'||e.code==='Enter'){
+    e.preventDefault();
+    if(state.active!==null) switchTurn(state.active);
+    else switchTurn(2);
+  }
+  if(e.code==='KeyP') togglePause();
+  if(e.code==='KeyR') resetGame();
+});
+
+// ════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════
+initPlayers();
+updateDisplay(1);
+updateDisplay(2);
+updateHalfClasses();
+updateTapBubbles();
+</script>
+</body>
+</html>
