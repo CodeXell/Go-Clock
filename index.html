@@ -2,461 +2,253 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0a">
 <title>Go Clock</title>
-
-<!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --black: #0a0a0a; --white: #f5f0e8; --accent: #c8a96e;
+  --danger: #e05a4e; --radius: 24px; --bar-h: 68px;
+  --transition: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+html,body { height:100%; height:100dvh; overflow:hidden; font-family:'DM Sans',sans-serif; background:var(--black); color:var(--white); user-select:none; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 
-  :root {
-    --black: #0a0a0a;
-    --white: #f5f0e8;
-    --accent: #c8a96e;
-    --danger: #e05a4e;
-    --radius: 24px;
-    --bar-h: 68px;
-    --transition: cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
+/* ── pages ── */
+.page { position:fixed; inset:0; display:flex; flex-direction:column; transition:opacity .35s ease,transform .35s ease; }
+.page.hidden { opacity:0; pointer-events:none; transform:translateY(16px); }
 
-  html {
-    /* Prevent iOS font size inflation on rotate */
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-  }
+/* ── clock layout ── */
+#clock-page { flex-direction:column; }
+#clock-page.side-by-side { flex-direction:row; }
+#clock-page.side-by-side .clock-half.top    { border-radius:0 var(--radius) var(--radius) 0; transform-origin:center left; }
+#clock-page.side-by-side .clock-half.bottom { border-radius:var(--radius) 0 0 var(--radius); transform-origin:center right; }
+#clock-page.side-by-side .clock-half.top .inner { transform:none; }
+#clock-page.side-by-side .clock-half.active.top    { box-shadow:20px 0 80px rgba(245,240,232,.22),4px 0 20px rgba(245,240,232,.12); transform:translateX(-5px); }
+#clock-page.side-by-side .clock-half.active.bottom { box-shadow:-20px 0 80px rgba(245,240,232,.22),-4px 0 20px rgba(245,240,232,.12); transform:translateX(5px); }
+#clock-page.side-by-side .controls-bar { flex-direction:column; width:var(--bar-h); height:100%; border-top:none; border-bottom:none; border-left:1px solid rgba(245,240,232,.06); border-right:1px solid rgba(245,240,232,.06); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom); gap:12px; }
+#clock-page.side-by-side .logo { position:static; writing-mode:vertical-rl; transform:rotate(180deg); margin-bottom:auto; }
+#clock-page.side-by-side .settings-icon-btn { position:static; margin-top:auto; }
+#clock-page.side-by-side .move-counter { writing-mode:vertical-rl; }
+#clock-page.side-by-side .remote-bar { flex-direction:column; writing-mode:vertical-rl; height:auto; width:auto; padding:0; }
 
-  html, body {
-    height: 100%;
-    /* Use dvh so iOS chrome bar doesn't cut layout */
-    height: 100dvh;
-    overflow: hidden;
-    font-family: 'DM Sans', sans-serif;
-    background: var(--black); color: var(--white);
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation; /* kills 300ms tap delay */
-  }
+/* ── clock halves ── */
+.clock-half { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; position:relative; transition:background .3s,box-shadow .4s,transform .4s var(--transition),filter .3s; outline:none; gap:clamp(10px,2vh,16px); padding:clamp(16px,4vw,30px); -webkit-tap-highlight-color:transparent; }
+.clock-half.top    { transform-origin:center top;    border-radius:0 0 var(--radius) var(--radius); }
+.clock-half.bottom { transform-origin:center bottom; border-radius:var(--radius) var(--radius) 0 0; }
+.clock-half.inactive { background:var(--black); color:var(--white); filter:brightness(.7); }
+.clock-half.active   { background:var(--white); color:var(--black); }
+.clock-half.active.bottom { box-shadow:0 -20px 80px rgba(245,240,232,.22),0 -4px 20px rgba(245,240,232,.12); transform:translateY(-5px); }
+.clock-half.active.top    { box-shadow:0  20px 80px rgba(245,240,232,.22),0  4px 20px rgba(245,240,232,.12); transform:translateY(5px); }
 
-  /* ─── PAGES ──────────────────────────────────── */
-  .page {
-    position: fixed; inset: 0;
-    display: flex; flex-direction: column;
-    transition: opacity 0.35s ease, transform 0.35s ease;
-  }
-  .page.hidden { opacity: 0; pointer-events: none; transform: translateY(16px); }
+/* ── danger flash ── */
+.clock-half.danger-pulse::after { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:2; animation:dangerEdge .55s ease-in-out infinite; }
+@keyframes dangerEdge {
+  0%,100% { box-shadow:inset 0 0 0px 0px rgba(160,10,0,0); background:rgba(160,10,0,0); }
+  50%      { box-shadow:inset 0 0 160px 60px rgba(160,10,0,.72); background:rgba(160,10,0,.08); }
+}
+.clock-half.danger-pulse .time-display { color:#c81500 !important; }
 
-  /* ─── CLOCK HALVES ──────────────────────────── */
-  .clock-half {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    cursor: pointer; position: relative;
-    transition: background 0.3s ease, box-shadow 0.4s ease,
-                transform 0.4s var(--transition), filter 0.3s ease;
-    outline: none;
-    gap: clamp(10px, 2vh, 16px);
-    padding: clamp(16px, 4vw, 30px);
-    /* Ensure the whole half is a tap target — no subregion misses */
-    -webkit-tap-highlight-color: transparent;
-  }
-  .clock-half.top    { transform-origin: center top;    border-radius: 0 0 var(--radius) var(--radius); }
-  .clock-half.bottom { transform-origin: center bottom; border-radius: var(--radius) var(--radius) 0 0; }
-  .clock-half.inactive { background: var(--black); color: var(--white); filter: brightness(0.7); }
-  .clock-half.active   { background: var(--white); color: var(--black); }
-  .clock-half.active.bottom {
-    box-shadow: 0 -20px 80px rgba(245,240,232,0.22), 0 -4px 20px rgba(245,240,232,0.12);
-    transform: translateY(-5px);
-  }
-  .clock-half.active.top {
-    box-shadow: 0 20px 80px rgba(245,240,232,0.22), 0 4px 20px rgba(245,240,232,0.12);
-    transform: translateY(5px);
-  }
+.clock-half.top .inner { transform:rotate(180deg); display:flex; flex-direction:column; align-items:center; gap:clamp(10px,2vh,14px); }
+.player-label { font-size:clamp(9px,2vw,11px); font-weight:500; letter-spacing:.25em; text-transform:uppercase; opacity:.5; }
+.time-display { font-family:'DM Mono',monospace; font-size:clamp(44px,16vmin,100px); font-weight:300; letter-spacing:-.02em; line-height:1; transition:color .2s,transform .15s; }
+.time-display.pulse { animation:timePulse .08s ease; }
+@keyframes timePulse { 0%{transform:scale(1)} 50%{transform:scale(.96)} 100%{transform:scale(1)} }
+.sub-info { font-family:'DM Mono',monospace; font-size:clamp(11px,2.5vw,13px); letter-spacing:.05em; opacity:.55; display:flex; align-items:center; gap:8px; min-height:18px; flex-wrap:wrap; justify-content:center; }
+.byo-dot { width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.4; transition:opacity .2s,transform .2s; flex-shrink:0; }
+.byo-dot.used { opacity:.12; }
+.byo-dot.current { opacity:1; transform:scale(1.4); animation:dotPulse 1s ease-in-out infinite; }
+@keyframes dotPulse { 0%,100%{transform:scale(1.4)} 50%{transform:scale(1)} }
+.byo-progress { height:3px; background:rgba(245,240,232,.1); width:min(80%,200px); border-radius:2px; overflow:hidden; }
+.clock-half.active .byo-progress { background:rgba(0,0,0,.1); }
+.byo-progress-fill { height:100%; background:currentColor; transition:width .9s linear; border-radius:2px; }
+.tap-to-start { display:flex; flex-direction:row; align-items:center; gap:8px; pointer-events:none; flex-wrap:wrap; justify-content:center; }
+.tap-bubble { background:rgba(245,240,232,.1); border:1px solid rgba(245,240,232,.18); border-radius:100px; padding:7px 16px; font-size:clamp(9px,2.2vw,11px); font-weight:500; letter-spacing:.18em; text-transform:uppercase; color:currentColor; animation:tapFade 1.8s ease-in-out infinite; }
+.tap-bubble.secondary { font-size:clamp(8px,2vw,10px); letter-spacing:.14em; background:rgba(245,240,232,.05); border-color:rgba(245,240,232,.1); animation-delay:.35s; }
+@keyframes tapFade { 0%,100%{opacity:.3;transform:translateY(2px)} 50%{opacity:.85;transform:translateY(0)} }
 
-  /* ── Danger edge flash ── */
-  .clock-half.danger-pulse::after {
-    content: ''; position: absolute; inset: 0; border-radius: inherit;
-    pointer-events: none; animation: dangerEdge 1s ease-in-out infinite;
-  }
-  @keyframes dangerEdge {
-    0%,100% { box-shadow: inset 0 0 0px   0px  rgba(224,90,78,0);    }
-    50%      { box-shadow: inset 0 0 60px  16px rgba(224,90,78,0.32); }
-  }
+/* ── controls bar ── */
+.controls-bar { height:var(--bar-h); background:var(--black); display:flex; align-items:center; justify-content:center; gap:clamp(8px,3vw,16px); z-index:20; flex-shrink:0; border-top:1px solid rgba(245,240,232,.06); border-bottom:1px solid rgba(245,240,232,.06); position:relative; padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right); }
+.logo { position:absolute; left:max(16px,env(safe-area-inset-left,16px)); font-family:'Playfair Display',serif; font-size:12px; font-weight:700; letter-spacing:.08em; color:rgba(245,240,232,.2); text-transform:uppercase; }
+@media (max-width:360px) { .logo { display:none; } }
+.move-counter { position:absolute; right:max(68px,calc(env(safe-area-inset-right,0px) + 68px)); font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.12em; color:rgba(245,240,232,.3); text-transform:uppercase; white-space:nowrap; }
+.move-counter span { color:rgba(245,240,232,.6); font-weight:500; }
+.ctrl-btn { background:rgba(245,240,232,.06); border:1px solid rgba(245,240,232,.1); color:var(--white); font-family:'DM Sans',sans-serif; font-size:clamp(11px,2.5vw,12px); font-weight:500; letter-spacing:.1em; text-transform:uppercase; min-height:44px; padding:0 clamp(14px,4vw,22px); border-radius:100px; cursor:pointer; transition:background .2s,border-color .2s,transform .15s; white-space:nowrap; -webkit-appearance:none; appearance:none; }
+.ctrl-btn:active { transform:scale(.94); background:rgba(245,240,232,.1); }
+@media (hover:hover) { .ctrl-btn:hover { background:rgba(245,240,232,.12); border-color:rgba(245,240,232,.2); transform:translateY(-1px); } }
+.ctrl-btn.danger { color:var(--danger); border-color:rgba(224,90,78,.3); }
+.ctrl-btn.danger:active { background:rgba(224,90,78,.12); }
+@media (hover:hover) { .ctrl-btn.danger:hover { background:rgba(224,90,78,.1); border-color:rgba(224,90,78,.5); } }
+.ctrl-btn.accent { color:var(--accent); border-color:rgba(200,169,110,.3); }
+.ctrl-btn.accent:active { background:rgba(200,169,110,.12); }
+@media (hover:hover) { .ctrl-btn.accent:hover { background:rgba(200,169,110,.1); border-color:rgba(200,169,110,.5); } }
+.settings-icon-btn { position:absolute; right:max(16px,env(safe-area-inset-right,16px)); background:none; border:1px solid rgba(245,240,232,.1); color:rgba(245,240,232,.5); width:44px; height:44px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; font-size:17px; -webkit-appearance:none; appearance:none; }
+.settings-icon-btn:active { color:var(--white); background:rgba(245,240,232,.1); }
+@media (hover:hover) { .settings-icon-btn:hover { color:var(--white); background:rgba(245,240,232,.06); } }
 
-  /* Top half inner rotates 180° so text faces that player */
-  .clock-half.top .inner {
-    transform: rotate(180deg);
-    display: flex; flex-direction: column; align-items: center;
-    gap: clamp(10px, 2vh, 14px);
-  }
+/* ── remote status bar (thin strip under controls bar) ── */
+.remote-bar { display:none; align-items:center; justify-content:center; gap:10px; background:#111; border-bottom:1px solid rgba(245,240,232,.06); padding:7px 16px; flex-shrink:0; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.08em; color:rgba(245,240,232,.4); }
+.remote-bar.active { display:flex; }
+.remote-badge { font-size:9px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; padding:3px 10px; border-radius:100px; }
+.remote-badge.host { background:rgba(200,169,110,.15); color:var(--accent); border:1px solid rgba(200,169,110,.3); }
+.remote-badge.guest { background:rgba(100,180,100,.12); color:#7ecb7e; border:1px solid rgba(100,180,100,.3); }
+.remote-code { font-size:13px; font-weight:500; color:var(--white); letter-spacing:.15em; }
+.remote-leave { background:none; border:none; color:rgba(245,240,232,.3); cursor:pointer; font-size:13px; padding:4px; line-height:1; }
+.remote-leave:active { color:var(--danger); }
+@media (hover:hover) { .remote-leave:hover { color:var(--danger); } }
 
-  .player-label {
-    font-size: clamp(9px, 2vw, 11px);
-    font-weight: 500; letter-spacing: 0.25em; text-transform: uppercase; opacity: 0.5;
-  }
+@media (max-height:500px) and (orientation:landscape) {
+  :root { --bar-h:52px; }
+  .ctrl-btn { min-height:36px; font-size:10px; padding:0 12px; }
+  .settings-icon-btn { width:36px; height:36px; font-size:14px; }
+  .time-display { font-size:clamp(32px,12vmin,64px); }
+  .sub-info { font-size:10px; } .player-label { font-size:9px; }
+  .tap-bubble { padding:5px 10px; font-size:9px; }
+  .logo { display:none; } .move-counter { display:none; }
+}
 
-  .time-display {
-    font-family: 'DM Mono', monospace;
-    /* Scales beautifully from tiny phones to tablets, portrait & landscape */
-    font-size: clamp(44px, 16vmin, 100px);
-    font-weight: 300; letter-spacing: -0.02em; line-height: 1;
-    transition: color 0.3s, transform 0.15s;
-  }
-  .time-display.pulse { animation: timePulse 0.08s ease; }
-  @keyframes timePulse { 0%{transform:scale(1)} 50%{transform:scale(0.97)} 100%{transform:scale(1)} }
+.ripple { position:absolute; border-radius:50%; background:rgba(255,255,255,.18); transform:scale(0); animation:rippleAnim .5s ease-out forwards; pointer-events:none; z-index:5; }
+@keyframes rippleAnim { to { transform:scale(4); opacity:0; } }
 
-  .sub-info {
-    font-family: 'DM Mono', monospace;
-    font-size: clamp(11px, 2.5vw, 13px);
-    letter-spacing: 0.05em; opacity: 0.55;
-    display: flex; align-items: center; gap: 8px; min-height: 18px;
-    flex-wrap: wrap; justify-content: center;
-  }
-  .byo-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: currentColor; opacity: 0.4;
-    transition: opacity 0.2s, transform 0.2s; flex-shrink: 0;
-  }
-  .byo-dot.used { opacity: 0.12; }
-  .byo-dot.current { opacity: 1; transform: scale(1.4); animation: dotPulse 1s ease-in-out infinite; }
-  @keyframes dotPulse { 0%,100%{transform:scale(1.4)} 50%{transform:scale(1)} }
+/* ── expired overlay ── */
+.expired-overlay { position:fixed; inset:0; background:var(--danger); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:100; opacity:0; pointer-events:none; transition:opacity .4s ease; gap:12px; padding:24px; padding-bottom:max(24px,env(safe-area-inset-bottom)); }
+.expired-overlay.show { opacity:1; pointer-events:all; }
+.expired-title { font-family:'Playfair Display',serif; font-size:clamp(28px,10vw,72px); font-weight:900; color:white; letter-spacing:-.02em; text-align:center; }
+.expired-sub { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.55); text-align:center; }
+.expired-reset { margin-top:16px; background:white; color:var(--danger); border:none; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; letter-spacing:.1em; text-transform:uppercase; padding:16px 36px; border-radius:100px; cursor:pointer; min-height:52px; transition:transform .2s; -webkit-appearance:none; appearance:none; }
+.expired-reset:active { transform:scale(.97); }
 
-  .byo-progress {
-    height: 3px; background: rgba(245,240,232,0.1);
-    width: min(80%, 200px); border-radius: 2px; overflow: hidden;
-  }
-  .clock-half.active .byo-progress { background: rgba(0,0,0,0.1); }
-  .byo-progress-fill { height: 100%; background: currentColor; transition: width 0.9s linear; border-radius: 2px; }
+/* ── toast ── */
+.toast { position:fixed; bottom:max(24px,env(safe-area-inset-bottom,24px)); left:50%; transform:translateX(-50%) translateY(80px); background:var(--white); color:var(--black); font-size:13px; font-weight:500; padding:12px 24px; border-radius:100px; z-index:200; transition:transform .4s var(--transition); white-space:nowrap; max-width:calc(100vw - 40px); }
+.toast.show { transform:translateX(-50%) translateY(0); }
 
-  /* Tap bubbles */
-  .tap-to-start { display: flex; flex-direction: row; align-items: center; gap: 8px; pointer-events: none; flex-wrap: wrap; justify-content: center; }
-  .tap-bubble {
-    background: rgba(245,240,232,0.1); border: 1px solid rgba(245,240,232,0.18);
-    border-radius: 100px; padding: 7px 16px;
-    font-size: clamp(9px, 2.2vw, 11px); font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase;
-    color: currentColor; animation: tapFade 1.8s ease-in-out infinite;
-  }
-  .tap-bubble.secondary {
-    font-size: clamp(8px, 2vw, 10px); letter-spacing: 0.14em;
-    background: rgba(245,240,232,0.05); border-color: rgba(245,240,232,0.1); animation-delay: 0.35s;
-  }
-  @keyframes tapFade { 0%,100%{opacity:0.3;transform:translateY(2px)} 50%{opacity:0.85;transform:translateY(0)} }
+/* ════════ settings page ════════ */
+#settings-page { background:var(--black); overflow-y:auto; overflow-x:hidden; padding:0; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
+.settings-header { padding:max(48px,env(safe-area-inset-top,48px)) 20px 24px; border-bottom:1px solid rgba(245,240,232,.08); position:sticky; top:0; background:var(--black); z-index:10; display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
+.settings-title { font-family:'Playfair Display',serif; font-size:clamp(22px,6vw,38px); font-weight:900; letter-spacing:-.02em; }
+.settings-subtitle { font-size:10px; letter-spacing:.2em; text-transform:uppercase; opacity:.3; margin-top:4px; }
+.back-btn { background:none; border:1px solid rgba(245,240,232,.15); color:var(--white); font-family:'DM Sans',sans-serif; font-size:12px; letter-spacing:.1em; text-transform:uppercase; padding:0 18px; border-radius:100px; cursor:pointer; transition:background .2s; flex-shrink:0; min-height:44px; display:flex; align-items:center; -webkit-appearance:none; appearance:none; }
+.back-btn:active { background:rgba(245,240,232,.08); }
+.settings-body { padding:24px 20px max(60px,env(safe-area-inset-bottom,60px)); max-width:600px; margin:0 auto; }
+.section-label { font-size:10px; letter-spacing:.25em; text-transform:uppercase; opacity:.3; margin-bottom:12px; margin-top:32px; font-weight:500; }
+.section-label:first-child { margin-top:0; }
 
-  /* ─── CONTROLS BAR ──────────────────────────── */
-  .controls-bar {
-    height: var(--bar-h); background: var(--black);
-    display: flex; align-items: center; justify-content: center;
-    gap: clamp(8px, 3vw, 16px);
-    z-index: 20; flex-shrink: 0;
-    border-top: 1px solid rgba(245,240,232,0.06);
-    border-bottom: 1px solid rgba(245,240,232,0.06);
-    position: relative;
-    /* Safe area insets for notched iPhones */
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
-  .logo {
-    position: absolute; left: max(16px, env(safe-area-inset-left, 16px));
-    font-family: 'Playfair Display', serif; font-size: 12px; font-weight: 700;
-    letter-spacing: 0.08em; color: rgba(245,240,232,0.2); text-transform: uppercase;
-    /* Hide on very small screens to avoid crowding */
-  }
-  @media (max-width: 360px) { .logo { display: none; } }
+/* ── layout picker ── */
+.layout-toggle { display:flex; gap:10px; }
+.layout-opt { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; background:rgba(245,240,232,.04); border:1px solid rgba(245,240,232,.1); border-radius:14px; padding:16px 12px; cursor:pointer; min-height:76px; color:var(--white); font-family:'DM Sans',sans-serif; font-size:11px; letter-spacing:.1em; text-transform:uppercase; opacity:.45; transition:all .2s; -webkit-appearance:none; appearance:none; }
+.layout-opt:active { background:rgba(245,240,232,.1); }
+.layout-opt.selected { background:rgba(200,169,110,.1); border-color:var(--accent); color:var(--accent); opacity:1; }
+@media (hover:hover) { .layout-opt:hover { background:rgba(245,240,232,.08); opacity:.8; } }
+.layout-icon { font-size:20px; line-height:1; }
 
-  .ctrl-btn {
-    background: rgba(245,240,232,0.06); border: 1px solid rgba(245,240,232,0.1);
-    color: var(--white); font-family: 'DM Sans', sans-serif;
-    font-size: clamp(11px, 2.5vw, 12px); font-weight: 500;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    /* Minimum 44×44px touch target */
-    min-height: 44px; padding: 0 clamp(14px, 4vw, 22px);
-    border-radius: 100px; cursor: pointer;
-    transition: background 0.2s, border-color 0.2s, transform 0.15s;
-    white-space: nowrap;
-    /* Remove iOS button styling */
-    -webkit-appearance: none; appearance: none;
-  }
-  .ctrl-btn:active { transform: scale(0.94); background: rgba(245,240,232,0.1); }
-  @media (hover: hover) {
-    .ctrl-btn:hover { background: rgba(245,240,232,0.12); border-color: rgba(245,240,232,0.2); transform: translateY(-1px); }
-  }
-  .ctrl-btn.danger { color: var(--danger); border-color: rgba(224,90,78,0.3); }
-  .ctrl-btn.danger:active { background: rgba(224,90,78,0.12); }
-  @media (hover: hover) { .ctrl-btn.danger:hover { background: rgba(224,90,78,0.1); border-color: rgba(224,90,78,0.5); } }
-  .ctrl-btn.accent { color: var(--accent); border-color: rgba(200,169,110,0.3); }
-  .ctrl-btn.accent:active { background: rgba(200,169,110,0.12); }
-  @media (hover: hover) { .ctrl-btn.accent:hover { background: rgba(200,169,110,0.1); border-color: rgba(200,169,110,0.5); } }
+/* ── remote play section ── */
+.remote-section { margin-top:0; }
+.remote-panels { display:flex; gap:10px; }
+.remote-panel { flex:1; background:rgba(245,240,232,.04); border:1px solid rgba(245,240,232,.1); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:10px; }
+.remote-panel-title { font-size:11px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; opacity:.5; }
+.remote-panel-desc  { font-size:11px; font-family:'DM Mono',monospace; opacity:.3; line-height:1.5; }
+.remote-action-btn { background:rgba(245,240,232,.08); border:1px solid rgba(245,240,232,.14); color:var(--white); font-family:'DM Sans',sans-serif; font-size:12px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; padding:0 14px; border-radius:100px; cursor:pointer; min-height:40px; transition:all .2s; -webkit-appearance:none; appearance:none; white-space:nowrap; }
+.remote-action-btn:active { background:rgba(245,240,232,.14); }
+@media (hover:hover) { .remote-action-btn:hover { background:rgba(245,240,232,.12); border-color:rgba(245,240,232,.25); } }
+.remote-action-btn.accent { background:rgba(200,169,110,.1); border-color:rgba(200,169,110,.3); color:var(--accent); }
+.remote-action-btn.accent:active { background:rgba(200,169,110,.2); }
+.remote-join-row { display:flex; gap:8px; }
+.remote-code-input { flex:1; background:rgba(245,240,232,.07); border:1px solid rgba(245,240,232,.12); color:var(--white); font-family:'DM Mono',monospace; font-size:max(16px,1.1em); font-weight:500; letter-spacing:.2em; text-align:center; text-transform:uppercase; padding:0 12px; border-radius:12px; outline:none; min-height:44px; transition:border-color .2s; -webkit-appearance:none; appearance:none; }
+.remote-code-input::placeholder { opacity:.25; letter-spacing:.1em; text-transform:none; }
+.remote-code-input:focus { border-color:var(--accent); background:rgba(200,169,110,.06); }
+.remote-status-row { display:flex; align-items:center; gap:8px; padding:10px 14px; background:rgba(200,169,110,.07); border:1px solid rgba(200,169,110,.2); border-radius:12px; }
+.remote-status-code { font-family:'DM Mono',monospace; font-size:20px; font-weight:500; letter-spacing:.2em; color:var(--accent); flex:1; }
+.remote-copy-btn { background:none; border:1px solid rgba(200,169,110,.3); color:var(--accent); font-family:'DM Sans',sans-serif; font-size:11px; letter-spacing:.08em; text-transform:uppercase; padding:6px 12px; border-radius:100px; cursor:pointer; transition:all .2s; -webkit-appearance:none; appearance:none; }
+.remote-copy-btn:active { background:rgba(200,169,110,.15); }
 
-  .settings-icon-btn {
-    position: absolute; right: max(16px, env(safe-area-inset-right, 16px));
-    background: none; border: 1px solid rgba(245,240,232,0.1);
-    color: rgba(245,240,232,0.5);
-    /* 44×44 touch target */
-    width: 44px; height: 44px;
-    border-radius: 50%; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 0.2s; font-size: 17px;
-    -webkit-appearance: none; appearance: none;
-  }
-  .settings-icon-btn:active { color: var(--white); background: rgba(245,240,232,0.1); }
-  @media (hover: hover) { .settings-icon-btn:hover { color: var(--white); background: rgba(245,240,232,0.06); } }
+/* ── dropdown ── */
+.custom-select-wrap { position:relative; }
+.custom-select-trigger { display:flex; align-items:center; justify-content:space-between; background:rgba(245,240,232,.05); border:1px solid rgba(245,240,232,.12); border-radius:14px; padding:16px 18px; cursor:pointer; transition:all .2s; gap:12px; min-height:60px; }
+.custom-select-trigger:active { background:rgba(245,240,232,.08); }
+@media (hover:hover) { .custom-select-trigger:hover { background:rgba(245,240,232,.08); border-color:rgba(245,240,232,.2); } }
+.custom-select-trigger.open { border-color:var(--accent); background:rgba(200,169,110,.07); border-radius:14px 14px 0 0; border-bottom-color:transparent; }
+.cst-left { display:flex; flex-direction:column; gap:3px; flex:1; min-width:0; }
+.cst-value { font-size:clamp(13px,3.5vw,15px); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cst-desc  { font-size:clamp(10px,2.5vw,11px); opacity:.4; font-family:'DM Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cst-arrow { width:28px; height:28px; border-radius:50%; border:1px solid rgba(245,240,232,.12); display:flex; align-items:center; justify-content:center; font-size:11px; opacity:.5; flex-shrink:0; transition:transform .3s var(--transition),opacity .2s; }
+.custom-select-trigger.open .cst-arrow { transform:rotate(180deg); opacity:.8; }
+.custom-select-panel { position:absolute; left:0; right:0; top:100%; z-index:50; background:#131313; border:1px solid rgba(200,169,110,.3); border-top:none; border-radius:0 0 14px 14px; overflow:hidden; max-height:0; transition:max-height .38s cubic-bezier(.4,0,.2,1),opacity .25s ease; opacity:0; pointer-events:none; }
+.custom-select-panel.open { max-height:440px; opacity:1; pointer-events:all; }
+.csp-option { display:flex; align-items:center; gap:14px; padding:14px 18px; cursor:pointer; transition:background .15s; border-bottom:1px solid rgba(245,240,232,.04); min-height:60px; }
+.csp-option:last-child { border-bottom:none; }
+.csp-option:active { background:rgba(245,240,232,.06); }
+@media (hover:hover) { .csp-option:hover { background:rgba(245,240,232,.04); } }
+.csp-option.selected { background:rgba(200,169,110,.07); }
+.csp-icon { width:38px; height:38px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:17px; background:rgba(245,240,232,.05); border:1px solid rgba(245,240,232,.07); }
+.csp-option.selected .csp-icon { background:rgba(200,169,110,.14); border-color:rgba(200,169,110,.28); }
+.csp-text { flex:1; min-width:0; }
+.csp-name { font-size:clamp(13px,3.5vw,14px); font-weight:500; }
+.csp-hint { font-size:clamp(10px,2.5vw,11px); opacity:.37; font-family:'DM Mono',monospace; margin-top:2px; }
+.csp-option.selected .csp-name { color:var(--accent); }
+.csp-check { font-size:13px; color:var(--accent); opacity:0; transition:opacity .2s; flex-shrink:0; }
+.csp-option.selected .csp-check { opacity:1; }
 
-  /* ─── LANDSCAPE PHONE MODE ──────────────────── */
-  /* When landscape on a small device, shrink bar and scale fonts */
-  @media (max-height: 500px) and (orientation: landscape) {
-    :root { --bar-h: 52px; }
-    .ctrl-btn { min-height: 36px; font-size: 10px; padding: 0 12px; }
-    .settings-icon-btn { width: 36px; height: 36px; font-size: 14px; }
-    .time-display { font-size: clamp(32px, 12vmin, 64px); }
-    .sub-info { font-size: 10px; }
-    .player-label { font-size: 9px; }
-    .tap-bubble { padding: 5px 10px; font-size: 9px; }
-    .logo { display: none; }
-  }
+/* ── time inputs ── */
+.time-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 0; border-bottom:1px solid rgba(245,240,232,.06); flex-wrap:nowrap; }
+.time-row-lhs { flex:1; min-width:0; }
+.time-row-label { font-size:clamp(13px,3.5vw,14px); font-weight:400; opacity:.85; }
+.time-row-sublabel { font-size:clamp(10px,2.5vw,11px); opacity:.32; margin-top:2px; font-family:'DM Mono',monospace; line-height:1.4; }
+.time-input-group { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.time-input,.count-input { background:rgba(245,240,232,.07); border:1px solid rgba(245,240,232,.12); color:var(--white); font-family:'DM Mono',monospace; font-size:max(16px,1em); font-weight:300; width:56px; min-height:48px; text-align:center; padding:0 4px; border-radius:12px; outline:none; transition:border-color .2s,background .2s; -moz-appearance:textfield; }
+.time-input::-webkit-inner-spin-button,.time-input::-webkit-outer-spin-button,.count-input::-webkit-inner-spin-button,.count-input::-webkit-outer-spin-button { -webkit-appearance:none; }
+.time-input:focus,.count-input:focus { border-color:var(--accent); background:rgba(200,169,110,.08); }
+.time-colon { opacity:.28; font-family:'DM Mono',monospace; font-size:18px; flex-shrink:0; }
+.row-unit { margin-left:6px; font-size:11px; opacity:.3; white-space:nowrap; flex-shrink:0; }
 
-  /* ─── RIPPLE ────────────────────────────────── */
-  .ripple {
-    position: absolute; border-radius: 50%; background: rgba(255,255,255,0.18);
-    transform: scale(0); animation: rippleAnim 0.5s ease-out forwards;
-    pointer-events: none; z-index: 5;
-  }
-  @keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
+/* ── rules ── */
+.rules-box { background:rgba(200,169,110,.05); border:1px solid rgba(200,169,110,.13); border-radius:14px; padding:16px 18px; margin-top:12px; }
+.rules-box p { font-size:clamp(12px,3vw,13px); line-height:1.75; opacity:.6; }
+.rules-box strong { color:var(--accent); font-weight:500; }
 
-  /* ─── EXPIRED OVERLAY ───────────────────────── */
-  .expired-overlay {
-    position: fixed; inset: 0; background: var(--danger);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; gap: 12px;
-    padding: 24px;
-    padding-bottom: max(24px, env(safe-area-inset-bottom));
-  }
-  .expired-overlay.show { opacity: 1; pointer-events: all; }
-  .expired-title { font-family: 'Playfair Display', serif; font-size: clamp(28px, 10vw, 72px); font-weight: 900; color: white; letter-spacing: -0.02em; text-align: center; }
-  .expired-sub { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255,255,255,0.55); text-align: center; }
-  .expired-reset {
-    margin-top: 16px; background: white; color: var(--danger); border: none;
-    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    padding: 16px 36px; border-radius: 100px; cursor: pointer;
-    min-height: 52px; transition: transform 0.2s;
-    -webkit-appearance: none; appearance: none;
-  }
-  .expired-reset:active { transform: scale(0.97); }
+/* ── presets ── */
+.presets-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:16px; }
+@media (min-width:480px) { .presets-grid { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; } }
+.preset-card { background:rgba(245,240,232,.04); border:1px solid rgba(245,240,232,.08); border-radius:14px; padding:14px; cursor:pointer; transition:background .2s,border-color .2s; position:relative; overflow:hidden; min-height:76px; }
+.preset-card:active { background:rgba(245,240,232,.08); }
+@media (hover:hover) { .preset-card:hover { background:rgba(245,240,232,.08); border-color:rgba(245,240,232,.15); } }
+.preset-card.selected { background:rgba(200,169,110,.1); border-color:var(--accent); }
+.preset-card .preset-name { font-size:clamp(12px,3vw,13px); font-weight:500; margin-bottom:3px; }
+.preset-card .preset-system { font-size:9px; opacity:.38; letter-spacing:.1em; text-transform:uppercase; margin-bottom:4px; }
+.preset-card .preset-desc { font-family:'DM Mono',monospace; font-size:10px; opacity:.38; line-height:1.5; }
+.preset-card .delete-preset { position:absolute; top:6px; right:6px; background:rgba(224,90,78,.08); border:none; color:rgba(224,90,78,.5); cursor:pointer; font-size:11px; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; transition:background .2s,color .2s; opacity:0; pointer-events:none; }
+@media (hover:none) { .preset-card .delete-preset { opacity:1; pointer-events:auto; } }
+@media (hover:hover) { .preset-card:hover .delete-preset { opacity:1; pointer-events:auto; } }
+.preset-card .delete-preset:active { background:rgba(224,90,78,.2); color:var(--danger); }
+.add-preset-btn { background:rgba(245,240,232,.03); border:1px dashed rgba(245,240,232,.13); border-radius:14px; padding:16px; cursor:pointer; transition:all .2s; color:rgba(245,240,232,.35); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px; font-family:'DM Sans',sans-serif; width:100%; min-height:52px; -webkit-appearance:none; appearance:none; }
+.add-preset-btn:active { color:var(--white); background:rgba(245,240,232,.06); }
+@media (hover:hover) { .add-preset-btn:hover { color:var(--white); border-color:rgba(245,240,232,.28); background:rgba(245,240,232,.05); } }
 
-  /* ─── TOAST ─────────────────────────────────── */
-  .toast {
-    position: fixed; bottom: max(24px, env(safe-area-inset-bottom, 24px)); left: 50%;
-    transform: translateX(-50%) translateY(80px);
-    background: var(--white); color: var(--black);
-    font-size: 13px; font-weight: 500; padding: 12px 24px;
-    border-radius: 100px; z-index: 200; transition: transform 0.4s var(--transition);
-    white-space: nowrap; max-width: calc(100vw - 40px);
-  }
-  .toast.show { transform: translateX(-50%) translateY(0); }
+/* ── play bar ── */
+.save-load-bar { display:flex; gap:10px; margin-top:28px; padding-top:24px; border-top:1px solid rgba(245,240,232,.08); }
+.play-btn { flex:1; background:var(--white); color:var(--black); border:none; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; padding:0 26px; border-radius:100px; cursor:pointer; transition:all .2s; min-height:52px; -webkit-appearance:none; appearance:none; }
+.play-btn:active { transform:scale(.97); background:#ddd8d0; }
+@media (hover:hover) { .play-btn:hover { background:#e8e3db; transform:translateY(-1px); box-shadow:0 6px 24px rgba(245,240,232,.2); } }
 
-  /* ════════════════════════════════════════════════
-     SETTINGS PAGE
-  ════════════════════════════════════════════════ */
-  #settings-page {
-    background: var(--black); overflow-y: auto; overflow-x: hidden; padding: 0;
-    /* Smooth momentum scrolling on iOS */
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-  }
-
-  .settings-header {
-    padding: max(48px, env(safe-area-inset-top, 48px)) 20px 24px;
-    border-bottom: 1px solid rgba(245,240,232,0.08);
-    position: sticky; top: 0; background: var(--black); z-index: 10;
-    display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
-  }
-  .settings-title { font-family: 'Playfair Display', serif; font-size: clamp(22px, 6vw, 38px); font-weight: 900; letter-spacing: -0.02em; }
-  .settings-subtitle { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.3; margin-top: 4px; }
-  .back-btn {
-    background: none; border: 1px solid rgba(245,240,232,0.15); color: var(--white);
-    font-family: 'DM Sans', sans-serif; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
-    padding: 0 18px; border-radius: 100px; cursor: pointer; transition: background 0.2s;
-    flex-shrink: 0; min-height: 44px; display: flex; align-items: center;
-    -webkit-appearance: none; appearance: none;
-  }
-  .back-btn:active { background: rgba(245,240,232,0.08); }
-
-  .settings-body {
-    padding: 24px 20px max(60px, env(safe-area-inset-bottom, 60px));
-    max-width: 600px; margin: 0 auto;
-  }
-
-  .section-label {
-    font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
-    opacity: 0.3; margin-bottom: 12px; margin-top: 32px; font-weight: 500;
-  }
-  .section-label:first-child { margin-top: 0; }
-
-  /* ── Custom Dropdown ── */
-  .custom-select-wrap { position: relative; }
-  .custom-select-trigger {
-    display: flex; align-items: center; justify-content: space-between;
-    background: rgba(245,240,232,0.05); border: 1px solid rgba(245,240,232,0.12);
-    border-radius: 14px; padding: 16px 18px; cursor: pointer; transition: all 0.2s; gap: 12px;
-    min-height: 60px; /* generous touch target */
-  }
-  .custom-select-trigger:active { background: rgba(245,240,232,0.08); }
-  @media (hover: hover) { .custom-select-trigger:hover { background: rgba(245,240,232,0.08); border-color: rgba(245,240,232,0.2); } }
-  .custom-select-trigger.open { border-color: var(--accent); background: rgba(200,169,110,0.07); border-radius: 14px 14px 0 0; border-bottom-color: transparent; }
-
-  .cst-left { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
-  .cst-value { font-size: clamp(13px, 3.5vw, 15px); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cst-desc  { font-size: clamp(10px, 2.5vw, 11px); opacity: 0.4; font-family: 'DM Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-  .cst-arrow {
-    width: 28px; height: 28px; border-radius: 50%;
-    border: 1px solid rgba(245,240,232,0.12);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; opacity: 0.5; flex-shrink: 0;
-    transition: transform 0.3s var(--transition), opacity 0.2s;
-  }
-  .custom-select-trigger.open .cst-arrow { transform: rotate(180deg); opacity: 0.8; }
-
-  .custom-select-panel {
-    position: absolute; left: 0; right: 0; top: 100%; z-index: 50;
-    background: #131313; border: 1px solid rgba(200,169,110,0.3); border-top: none;
-    border-radius: 0 0 14px 14px; overflow: hidden;
-    max-height: 0; transition: max-height 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease;
-    opacity: 0; pointer-events: none;
-  }
-  .custom-select-panel.open { max-height: 440px; opacity: 1; pointer-events: all; }
-
-  .csp-option {
-    display: flex; align-items: center; gap: 14px; padding: 14px 18px; cursor: pointer;
-    transition: background 0.15s; border-bottom: 1px solid rgba(245,240,232,0.04);
-    min-height: 60px; /* touch target */
-  }
-  .csp-option:last-child { border-bottom: none; }
-  .csp-option:active { background: rgba(245,240,232,0.06); }
-  @media (hover: hover) { .csp-option:hover { background: rgba(245,240,232,0.04); } }
-  .csp-option.selected { background: rgba(200,169,110,0.07); }
-
-  .csp-icon {
-    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center; font-size: 17px;
-    background: rgba(245,240,232,0.05); border: 1px solid rgba(245,240,232,0.07);
-  }
-  .csp-option.selected .csp-icon { background: rgba(200,169,110,0.14); border-color: rgba(200,169,110,0.28); }
-  .csp-text { flex: 1; min-width: 0; }
-  .csp-name { font-size: clamp(13px, 3.5vw, 14px); font-weight: 500; }
-  .csp-hint { font-size: clamp(10px, 2.5vw, 11px); opacity: 0.37; font-family: 'DM Mono', monospace; margin-top: 2px; }
-  .csp-option.selected .csp-name { color: var(--accent); }
-  .csp-check { font-size: 13px; color: var(--accent); opacity: 0; transition: opacity 0.2s; flex-shrink: 0; }
-  .csp-option.selected .csp-check { opacity: 1; }
-
-  /* ── Time input rows ── */
-  .time-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 14px 0; border-bottom: 1px solid rgba(245,240,232,0.06);
-    flex-wrap: nowrap;
-  }
-  .time-row-lhs { flex: 1; min-width: 0; }
-  .time-row-label { font-size: clamp(13px, 3.5vw, 14px); font-weight: 400; opacity: 0.85; }
-  .time-row-sublabel { font-size: clamp(10px, 2.5vw, 11px); opacity: 0.32; margin-top: 2px; font-family: 'DM Mono', monospace; line-height: 1.4; }
-  .time-input-group { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-
-  .time-input, .count-input {
-    background: rgba(245,240,232,0.07); border: 1px solid rgba(245,240,232,0.12);
-    color: var(--white); font-family: 'DM Mono', monospace;
-    font-size: clamp(16px, 4vw, 20px); font-weight: 300;
-    /* 56px wide, 48px tall — comfortably tappable */
-    width: 56px; min-height: 48px; text-align: center;
-    padding: 0 4px; border-radius: 12px; outline: none;
-    transition: border-color 0.2s, background 0.2s;
-    -moz-appearance: textfield;
-    /* Prevent iOS zoom on focus (keep font ≥16px) */
-    font-size: max(16px, 1em);
-  }
-  .time-input::-webkit-inner-spin-button, .time-input::-webkit-outer-spin-button,
-  .count-input::-webkit-inner-spin-button, .count-input::-webkit-outer-spin-button { -webkit-appearance: none; }
-  .time-input:focus, .count-input:focus { border-color: var(--accent); background: rgba(200,169,110,0.08); }
-  .time-colon { opacity: 0.28; font-family: 'DM Mono', monospace; font-size: 18px; flex-shrink: 0; }
-  .row-unit { margin-left: 6px; font-size: 11px; opacity: 0.3; white-space: nowrap; flex-shrink: 0; }
-
-  /* ── Rules box ── */
-  .rules-box { background: rgba(200,169,110,0.05); border: 1px solid rgba(200,169,110,0.13); border-radius: 14px; padding: 16px 18px; margin-top: 12px; }
-  .rules-box p { font-size: clamp(12px, 3vw, 13px); line-height: 1.75; opacity: 0.6; }
-  .rules-box strong { color: var(--accent); font-weight: 500; }
-
-  /* ── Presets grid ── */
-  .presets-grid {
-    /* On mobile: 2 columns; on wider screens: auto-fill */
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px; margin-bottom: 16px;
-  }
-  @media (min-width: 480px) { .presets-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; } }
-
-  .preset-card {
-    background: rgba(245,240,232,0.04); border: 1px solid rgba(245,240,232,0.08);
-    border-radius: 14px; padding: 14px; cursor: pointer;
-    transition: background 0.2s, border-color 0.2s; position: relative; overflow: hidden;
-    min-height: 76px; /* tap target */
-  }
-  .preset-card:active { background: rgba(245,240,232,0.08); }
-  @media (hover: hover) { .preset-card:hover { background: rgba(245,240,232,0.08); border-color: rgba(245,240,232,0.15); } }
-  .preset-card.selected { background: rgba(200,169,110,0.1); border-color: var(--accent); }
-  .preset-card .preset-name { font-size: clamp(12px, 3vw, 13px); font-weight: 500; margin-bottom: 3px; }
-  .preset-card .preset-system { font-size: 9px; opacity: 0.38; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
-  .preset-card .preset-desc { font-family: 'DM Mono', monospace; font-size: 10px; opacity: 0.38; line-height: 1.5; }
-  /* Delete button: always visible on touch devices, hover-only on pointer devices */
-  .preset-card .delete-preset {
-    position: absolute; top: 6px; right: 6px;
-    background: rgba(224,90,78,0.08); border: none; color: rgba(224,90,78,0.5);
-    cursor: pointer; font-size: 11px;
-    width: 24px; height: 24px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.2s, color 0.2s;
-    opacity: 0; pointer-events: none;
-  }
-  /* Touch: always show */
-  @media (hover: none) { .preset-card .delete-preset { opacity: 1; pointer-events: auto; } }
-  /* Mouse: show on hover */
-  @media (hover: hover) { .preset-card:hover .delete-preset { opacity: 1; pointer-events: auto; } }
-  .preset-card .delete-preset:active { background: rgba(224,90,78,0.2); color: var(--danger); }
-
-  .add-preset-btn {
-    background: rgba(245,240,232,0.03); border: 1px dashed rgba(245,240,232,0.13);
-    border-radius: 14px; padding: 16px; cursor: pointer; transition: all 0.2s;
-    color: rgba(245,240,232,0.35); font-size: 13px;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    font-family: 'DM Sans', sans-serif; width: 100%; min-height: 52px;
-    -webkit-appearance: none; appearance: none;
-  }
-  .add-preset-btn:active { color: var(--white); background: rgba(245,240,232,0.06); }
-  @media (hover: hover) { .add-preset-btn:hover { color: var(--white); border-color: rgba(245,240,232,0.28); background: rgba(245,240,232,0.05); } }
-
-  /* ── Save bar ── */
-  .save-load-bar {
-    display: flex; gap: 10px; margin-top: 28px; padding-top: 24px;
-    border-top: 1px solid rgba(245,240,232,0.08);
-  }
-  .save-btn {
-    flex: 1; background: var(--accent); color: var(--black); border: none;
-    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
-    letter-spacing: 0.1em; text-transform: uppercase; padding: 0 20px;
-    border-radius: 100px; cursor: pointer; transition: all 0.2s ease;
-    min-height: 52px; -webkit-appearance: none; appearance: none;
-  }
-  .save-btn:active { transform: scale(0.97); background: #bf9f60; }
-  @media (hover: hover) { .save-btn:hover { background: #d4b97e; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(200,169,110,0.3); } }
-
-  .play-btn {
-    background: var(--white); color: var(--black); border: none;
-    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
-    letter-spacing: 0.1em; text-transform: uppercase; padding: 0 26px;
-    border-radius: 100px; cursor: pointer; transition: all 0.2s ease;
-    min-height: 52px; -webkit-appearance: none; appearance: none;
-  }
-  .play-btn:active { transform: scale(0.97); background: #ddd8d0; }
-  @media (hover: hover) { .play-btn:hover { background: #e8e3db; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(245,240,232,0.2); } }
+/* ── app modal ── */
+.modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.78); z-index:300; display:flex; align-items:center; justify-content:center; padding:24px; opacity:0; pointer-events:none; transition:opacity .25s ease; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+.modal-backdrop.show { opacity:1; pointer-events:all; }
+.modal-box { background:#1c1c1c; border:1px solid rgba(245,240,232,.12); border-radius:22px; padding:28px 24px 22px; width:100%; max-width:360px; transform:scale(.93) translateY(10px); transition:transform .3s var(--transition); }
+.modal-backdrop.show .modal-box { transform:scale(1) translateY(0); }
+.modal-title { font-family:'Playfair Display',serif; font-size:21px; font-weight:700; margin-bottom:5px; }
+.modal-sub { font-size:12px; opacity:.38; font-family:'DM Mono',monospace; margin-bottom:20px; line-height:1.5; }
+.modal-input { width:100%; background:rgba(245,240,232,.07); border:1px solid rgba(245,240,232,.15); color:var(--white); font-family:'DM Sans',sans-serif; font-size:max(16px,1em); padding:14px 16px; border-radius:12px; outline:none; transition:border-color .2s,background .2s; }
+.modal-input:focus { border-color:var(--accent); background:rgba(200,169,110,.06); }
+.modal-actions { display:flex; gap:10px; margin-top:16px; }
+.modal-cancel { flex:1; background:rgba(245,240,232,.06); border:1px solid rgba(245,240,232,.1); color:var(--white); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; padding:0 16px; border-radius:100px; cursor:pointer; min-height:48px; transition:background .2s; -webkit-appearance:none; appearance:none; }
+.modal-cancel:active { background:rgba(245,240,232,.12); }
+.modal-confirm { flex:2; background:var(--accent); color:var(--black); border:none; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; padding:0 16px; border-radius:100px; cursor:pointer; min-height:48px; transition:all .2s; -webkit-appearance:none; appearance:none; }
+.modal-confirm:active { transform:scale(.97); background:#bf9f60; }
 </style>
 </head>
 <body>
@@ -464,16 +256,13 @@
 <!-- ═══ CLOCK PAGE ═══════════════════════════════════════ -->
 <div id="clock-page" class="page">
 
-  <!-- Player 1 (top, rotated 180°) -->
   <div class="clock-half top inactive" id="p1-half" tabindex="0">
     <div class="inner">
       <div class="player-label">Black</div>
-      <div class="time-display" id="p1-time">1:00</div>
+      <div class="time-display" id="p1-time">3:00</div>
       <div class="sub-info" id="p1-sub">
-        <div class="byo-dot" id="p1-d0"></div>
-        <div class="byo-dot" id="p1-d1"></div>
-        <div class="byo-dot" id="p1-d2"></div>
-        <div class="byo-dot" id="p1-d3"></div>
+        <div class="byo-dot" id="p1-d0"></div><div class="byo-dot" id="p1-d1"></div>
+        <div class="byo-dot" id="p1-d2"></div><div class="byo-dot" id="p1-d3"></div>
         <div class="byo-dot" id="p1-d4"></div>
         <span id="p1-sub-text" style="margin-left:4px;"></span>
       </div>
@@ -487,23 +276,27 @@
     </div>
   </div>
 
-  <!-- Controls bar -->
   <div class="controls-bar">
     <span class="logo">Go Clock</span>
     <button class="ctrl-btn danger" onclick="resetGame()">Reset</button>
     <button class="ctrl-btn accent" id="btn-pause" onclick="togglePause()">Pause</button>
+    <div class="move-counter" id="move-counter" style="display:none;">Move <span id="move-num">0</span></div>
     <button class="settings-icon-btn" onclick="showSettings()" title="Settings">⚙</button>
   </div>
 
-  <!-- Player 2 (bottom) -->
+  <!-- Remote session status strip -->
+  <div class="remote-bar" id="remote-bar">
+    <span class="remote-badge host" id="remote-badge">Hosting</span>
+    <span class="remote-code" id="remote-code-display">——</span>
+    <button class="remote-leave" onclick="leaveRoom()" title="Leave session">✕</button>
+  </div>
+
   <div class="clock-half bottom inactive" id="p2-half" tabindex="0">
     <div class="player-label">White</div>
-    <div class="time-display" id="p2-time">1:00</div>
+    <div class="time-display" id="p2-time">3:00</div>
     <div class="sub-info" id="p2-sub">
-      <div class="byo-dot" id="p2-d0"></div>
-      <div class="byo-dot" id="p2-d1"></div>
-      <div class="byo-dot" id="p2-d2"></div>
-      <div class="byo-dot" id="p2-d3"></div>
+      <div class="byo-dot" id="p2-d0"></div><div class="byo-dot" id="p2-d1"></div>
+      <div class="byo-dot" id="p2-d2"></div><div class="byo-dot" id="p2-d3"></div>
       <div class="byo-dot" id="p2-d4"></div>
       <span id="p2-sub-text" style="margin-left:4px;"></span>
     </div>
@@ -526,19 +319,31 @@
     </div>
     <button class="back-btn" onclick="showClock()">← Back</button>
   </div>
-
   <div class="settings-body">
 
     <div class="section-label">Saved Presets</div>
     <div class="presets-grid" id="presets-grid"></div>
     <button class="add-preset-btn" onclick="saveCurrentAsPreset()">+ Save Current as Preset</button>
 
+    <div class="section-label">Layout</div>
+    <div class="layout-toggle">
+      <button class="layout-opt selected" id="layout-stacked" onclick="setLayout('stacked')">
+        <div class="layout-icon">⬛<br>⬜</div>Stacked
+      </button>
+      <button class="layout-opt" id="layout-side" onclick="setLayout('side')">
+        <div class="layout-icon">⬛ ⬜</div>Side by Side
+      </button>
+    </div>
+
+    <div class="section-label">Remote Play</div>
+    <div id="remote-section-ui"></div>
+
     <div class="section-label">Time System</div>
     <div class="custom-select-wrap" id="ts-wrap">
       <div class="custom-select-trigger" id="ts-trigger" onclick="toggleDropdown()">
         <div class="cst-left">
           <div class="cst-value" id="ts-value">Japanese Byo-Yomi</div>
-          <div class="cst-desc"  id="ts-desc">Main time + timed periods per move</div>
+          <div class="cst-desc" id="ts-desc">Main time + timed periods per move</div>
         </div>
         <div class="cst-arrow">▾</div>
       </div>
@@ -551,22 +356,53 @@
     <div class="rules-box"><p id="rules-text"></p></div>
 
     <div class="save-load-bar">
-      <button class="save-btn" onclick="saveAndApply()">Apply Settings</button>
       <button class="play-btn" onclick="applyAndPlay()">▶ Play</button>
     </div>
   </div>
 </div>
 
-<!-- ═══ EXPIRED OVERLAY ══════════════════════════════════ -->
+<!-- ═══ EXPIRED OVERLAY ═══════════════════════════════════ -->
 <div class="expired-overlay" id="expired-overlay">
   <div class="expired-sub">Time has run out</div>
-  <div class="expired-title" id="expired-who">Black loses</div>
+  <div class="expired-title" id="expired-who">Black loses on time</div>
   <button class="expired-reset" onclick="resetGame()">Reset & Play Again</button>
+</div>
+
+<!-- ═══ APP MODAL ════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="handleModalBackdropClick(event)">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Save Preset</div>
+    <div class="modal-sub" id="modal-sub">Give this configuration a name</div>
+    <input class="modal-input" type="text" id="modal-input" placeholder="e.g. Tournament 30m" autocomplete="off" maxlength="40">
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-confirm" id="modal-confirm">Save</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
+import { initializeApp }    from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getFirestore, doc, setDoc, onSnapshot, deleteDoc }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+// ════════════════════════════════════════════════════════
+// FIREBASE SETUP
+// ════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyD7rNFmIFEZn0rK5SA9KjuZsaR5czF06XY",
+  authDomain: "go-clock-7d527.firebaseapp.com",
+  projectId: "go-clock-7d527",
+  storageBucket: "go-clock-7d527.firebasestorage.app",
+  messagingSenderId: "198198206473",
+  appId: "1:198198206473:web:19da2bfc650009742e18d8",
+  measurementId: "G-KLEDDQ1900"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db    = getFirestore(fbApp);
+
 // ════════════════════════════════════════════════════════
 // TIME SYSTEMS
 // ════════════════════════════════════════════════════════
@@ -574,11 +410,11 @@ const TIME_SYSTEMS = {
   japanese: {
     id:'japanese', name:'Japanese Byo-Yomi', icon:'🎌',
     shortDesc:'Main time + timed periods per move',
-    defaults:{ mainTime:60, byoTime:30, byoCount:5 },
+    defaults:{ mainTime:180, byoTime:30, byoCount:5 },
     fields:[
-      { id:'mainTime',  label:'Main Time',       sub:'Total thinking time before byo-yomi', type:'mmss' },
-      { id:'byoTime',   label:'Period Duration',  sub:'Time limit per byo-yomi period',      type:'mmss' },
-      { id:'byoCount',  label:'Periods',          sub:'Number of byo-yomi periods per player', type:'count', unit:'periods' },
+      { id:'mainTime', label:'Main Time',      sub:'Total thinking time before byo-yomi', type:'mmss' },
+      { id:'byoTime',  label:'Period Duration', sub:'Time limit per byo-yomi period',      type:'mmss' },
+      { id:'byoCount', label:'Periods',         sub:'Number of byo-yomi periods per player', type:'count', unit:'periods' },
     ],
     rules:`<strong>Japanese Byo-Yomi</strong> — Each player has fixed main thinking time. Once exhausted, they enter byo-yomi: a series of timed periods. <strong>Each move must be completed within one period.</strong> Finishing a move in time resets the period clock. Running out loses one period. Lose all periods and you lose the game.`,
     tapLabel:'Byo-Yomi',
@@ -587,64 +423,54 @@ const TIME_SYSTEMS = {
     id:'sudden', name:'Sudden Death', icon:'☠️',
     shortDesc:'One fixed clock — no overtime',
     defaults:{ mainTime:300 },
-    fields:[
-      { id:'mainTime', label:'Total Time', sub:'All the time each player has — no overtime', type:'mmss' },
-    ],
-    rules:`<strong>Sudden Death</strong> — Each player has a single block of time. <strong>When it runs out, they lose immediately.</strong> No overtime, no byo-yomi, no second chances. Every second matters.`,
+    fields:[{ id:'mainTime', label:'Total Time', sub:'All the time each player has — no overtime', type:'mmss' }],
+    rules:`<strong>Sudden Death</strong> — Each player has a single block of time. <strong>When it runs out, they lose immediately.</strong> No overtime, no byo-yomi, no second chances.`,
     tapLabel:'Sudden Death',
   },
   canadian: {
     id:'canadian', name:'Canadian Byo-Yomi', icon:'🍁',
     shortDesc:'Main time + moves-per-period overtime',
-    defaults:{ mainTime:60, byoTime:60, movesPerPeriod:10 },
+    defaults:{ mainTime:180, byoTime:60, movesPerPeriod:10 },
     fields:[
-      { id:'mainTime',      label:'Main Time',       sub:'Thinking time before byo-yomi begins',  type:'mmss' },
-      { id:'byoTime',       label:'Period Duration',  sub:'Time to complete the required moves',    type:'mmss' },
-      { id:'movesPerPeriod',label:'Moves per Period', sub:'Moves that must be made each period',   type:'count', unit:'moves' },
+      { id:'mainTime',       label:'Main Time',       sub:'Thinking time before byo-yomi begins', type:'mmss' },
+      { id:'byoTime',        label:'Period Duration',  sub:'Time to complete the required moves',  type:'mmss' },
+      { id:'movesPerPeriod', label:'Moves per Period', sub:'Moves that must be made each period',  type:'count', unit:'moves' },
     ],
-    rules:`<strong>Canadian Byo-Yomi</strong> — After main time, players must complete a <strong>set number of moves within a single period</strong>. The period resets only after all required moves are made in time. Running out means loss. Periods repeat until the game ends.`,
+    rules:`<strong>Canadian Byo-Yomi</strong> — After main time, players must complete a <strong>set number of moves within a single period</strong>. The period resets only after all required moves are made in time. Running out means loss.`,
     tapLabel:'Canadian',
   },
   fischer: {
     id:'fischer', name:'Fischer Increment', icon:'⏱',
     shortDesc:'Seconds added to clock after every move',
-    defaults:{ mainTime:60, increment:10 },
+    defaults:{ mainTime:180, increment:10 },
     fields:[
       { id:'mainTime',  label:'Starting Time', sub:'Clock time each player starts with', type:'mmss' },
-      { id:'increment', label:'Increment',      sub:'Seconds added to your clock after every move', type:'count', unit:'sec / move' },
+      { id:'increment', label:'Increment',     sub:'Seconds added to your clock after every move', type:'count', unit:'sec / move' },
     ],
-    rules:`<strong>Fischer Increment</strong> — Each player starts with a set amount of time. <strong>After every move, a fixed number of seconds is added to their clock.</strong> Quick, confident moves build time. Running out at any point means loss.`,
+    rules:`<strong>Fischer Increment</strong> — Each player starts with a set amount of time. <strong>After every move, a fixed number of seconds is added to their clock.</strong> Running out at any point means loss.`,
     tapLabel:'Fischer',
   },
   simple: {
     id:'simple', name:'Simple (Per Move)', icon:'⏳',
     shortDesc:'Fixed time limit for each individual move',
     defaults:{ moveTime:30 },
-    fields:[
-      { id:'moveTime', label:'Time per Move', sub:'Each player must move within this limit — resets every turn', type:'mmss' },
-    ],
-    rules:`<strong>Simple / Per Move</strong> — Each player has a fixed clock for <strong>every single move</strong>. The clock resets completely at the start of each turn. No accumulation — use it or lose it, every time. Fail to move in time and you lose.`,
+    fields:[{ id:'moveTime', label:'Time per Move', sub:'Each player must move within this limit — resets every turn', type:'mmss' }],
+    rules:`<strong>Simple / Per Move</strong> — Each player has a fixed clock for <strong>every single move</strong>. The clock resets completely at the start of each turn. Fail to move in time and you lose.`,
     tapLabel:'Per Move',
   },
 };
-
 const SYSTEM_ORDER = ['japanese','sudden','canadian','fischer','simple'];
-
-const DEFAULT_SETTINGS = { system:'japanese', mainTime:60, byoTime:30, byoCount:5, movesPerPeriod:10, increment:10, moveTime:30 };
+const DEFAULT_SETTINGS = { system:'japanese', mainTime:180, byoTime:30, byoCount:5, movesPerPeriod:10, increment:10, moveTime:30 };
 
 // ════════════════════════════════════════════════════════
 // STORAGE
 // ════════════════════════════════════════════════════════
-function loadSettings() {
-  try { const s=JSON.parse(localStorage.getItem('goclock_s3')); if(s&&s.system) return {...DEFAULT_SETTINGS,...s}; } catch(e){}
-  return {...DEFAULT_SETTINGS};
-}
-function saveSettings(s) { localStorage.setItem('goclock_s3',JSON.stringify(s)); settings=s; }
-function loadPresets() {
-  try { const p=JSON.parse(localStorage.getItem('goclock_p3')); if(Array.isArray(p)&&p.length) return p; } catch(e){}
-  return [{ name:'Default', ...DEFAULT_SETTINGS }];
-}
-function savePresets(p) { localStorage.setItem('goclock_p3',JSON.stringify(p)); presets=p; }
+function loadSettings()  { try { const s=JSON.parse(localStorage.getItem('goclock_s4')); if(s&&s.system) return {...DEFAULT_SETTINGS,...s}; } catch(e){} return {...DEFAULT_SETTINGS}; }
+function saveSettings(s) { localStorage.setItem('goclock_s4',JSON.stringify(s)); settings=s; }
+function loadPresets()   { try { const p=JSON.parse(localStorage.getItem('goclock_p4')); if(Array.isArray(p)&&p.length) return p; } catch(e){} return []; }
+function savePresets(p)  { localStorage.setItem('goclock_p4',JSON.stringify(p)); presets=p; }
+function loadLayout()    { return localStorage.getItem('goclock_layout')||'stacked'; }
+function saveLayout(l)   { localStorage.setItem('goclock_layout',l); }
 
 let settings = loadSettings();
 let presets  = loadPresets();
@@ -652,7 +478,7 @@ let presets  = loadPresets();
 // ════════════════════════════════════════════════════════
 // GAME STATE
 // ════════════════════════════════════════════════════════
-let state = { phase:'idle', active:null, p1:null, p2:null, interval:null };
+let state = { phase:'idle', active:null, p1:null, p2:null, interval:null, moves:0 };
 
 function makePlayer() {
   const s=settings, sys=s.system;
@@ -662,7 +488,16 @@ function makePlayer() {
   if (sys==='fischer')  return { main:s.mainTime, inc:s.increment };
   if (sys==='simple')   return { main:s.moveTime, moveTotal:s.moveTime };
 }
-function initPlayers() { state.p1=makePlayer(); state.p2=makePlayer(); }
+function initPlayers() { state.p1=makePlayer(); state.p2=makePlayer(); state.moves=0; updateMoveCounter(); }
+
+// ════════════════════════════════════════════════════════
+// MOVE COUNTER
+// ════════════════════════════════════════════════════════
+function updateMoveCounter() {
+  const el=document.getElementById('move-counter'), num=document.getElementById('move-num');
+  if (state.phase==='idle'||state.phase==='expired') { el.style.display='none'; return; }
+  el.style.display=''; num.textContent=state.moves;
+}
 
 // ════════════════════════════════════════════════════════
 // DISPLAY
@@ -672,233 +507,153 @@ function fmt(secs) {
   const m=Math.floor(secs/60), s=secs%60;
   return (neg?'-':'')+(m>0 ? m+':'+String(s).padStart(2,'0') : String(s));
 }
-
 function updateDisplay(pid) {
-  const p   = pid===1 ? state.p1 : state.p2;
-  const sys = settings.system;
-  const tEl = document.getElementById(`p${pid}-time`);
-  const sTxt= document.getElementById(`p${pid}-sub-text`);
-  const pEl = document.getElementById(`p${pid}-progress`);
-  const fEl = document.getElementById(`p${pid}-fill`);
-
-  // Reset dots & bar
+  const p=pid===1?state.p1:state.p2, sys=settings.system;
+  const tEl=document.getElementById(`p${pid}-time`);
+  const sTxt=document.getElementById(`p${pid}-sub-text`);
+  const pEl=document.getElementById(`p${pid}-progress`);
+  const fEl=document.getElementById(`p${pid}-fill`);
   for(let i=0;i<5;i++) document.getElementById(`p${pid}-d${i}`).style.display='none';
   pEl.style.display='none';
-
   if (sys==='japanese') {
-    if (!p.inByo) {
-      tEl.textContent=fmt(p.main);
-      sTxt.textContent=`× ${p.byoCount} byo-yomi`;
-      renderDots(pid, p.byoCount, settings.byoCount, false);
-    } else {
-      tEl.textContent=fmt(p.byoLeft);
-      sTxt.textContent=p.byoCount>1?`${p.byoCount} periods left`:'Last period!';
-      renderDots(pid, p.byoCount, settings.byoCount, true);
-      pEl.style.display='block'; fEl.style.width=Math.max(0,(p.byoLeft/p.byoTotal)*100)+'%';
-    }
+    if (!p.inByo) { tEl.textContent=fmt(p.main); sTxt.textContent=`× ${p.byoCount} byo-yomi`; renderDots(pid,p.byoCount,settings.byoCount,false); }
+    else { tEl.textContent=fmt(p.byoLeft); sTxt.textContent=p.byoCount>1?`${p.byoCount} periods left`:'Last period!'; renderDots(pid,p.byoCount,settings.byoCount,true); pEl.style.display='block'; fEl.style.width=Math.max(0,(p.byoLeft/p.byoTotal)*100)+'%'; }
   } else if (sys==='sudden') {
     tEl.textContent=fmt(p.main); sTxt.textContent='Sudden death';
   } else if (sys==='canadian') {
-    if (!p.inByo) {
-      tEl.textContent=fmt(p.main); sTxt.textContent=`${settings.movesPerPeriod} moves / period`;
-    } else {
-      tEl.textContent=fmt(p.byoLeft);
-      const mv=p.movesRequired-p.movesInPeriod;
-      sTxt.textContent=`${mv} move${mv!==1?'s':''} left in period`;
-      pEl.style.display='block'; fEl.style.width=Math.max(0,(p.byoLeft/p.byoTotal)*100)+'%';
-    }
+    if (!p.inByo) { tEl.textContent=fmt(p.main); sTxt.textContent=`${settings.movesPerPeriod} moves / period`; }
+    else { tEl.textContent=fmt(p.byoLeft); const mv=p.movesRequired-p.movesInPeriod; sTxt.textContent=`${mv} move${mv!==1?'s':''} left in period`; pEl.style.display='block'; fEl.style.width=Math.max(0,(p.byoLeft/p.byoTotal)*100)+'%'; }
   } else if (sys==='fischer') {
     tEl.textContent=fmt(p.main); sTxt.textContent=`+${p.inc}s / move`;
   } else if (sys==='simple') {
-    tEl.textContent=fmt(p.main); sTxt.textContent='per move';
-    pEl.style.display='block'; fEl.style.width=Math.max(0,(p.main/p.moveTotal)*100)+'%';
+    tEl.textContent=fmt(p.main); sTxt.textContent='per move'; pEl.style.display='block'; fEl.style.width=Math.max(0,(p.main/p.moveTotal)*100)+'%';
   }
 }
-
-function renderDots(pid, remaining, total, inByo) {
+function renderDots(pid,remaining,total,inByo) {
   const show=Math.min(total,5);
   for(let i=0;i<5;i++) {
     const d=document.getElementById(`p${pid}-d${i}`);
-    if(i>=show){ d.style.display='none'; continue; }
+    if(i>=show){d.style.display='none';continue;}
     d.style.display=''; d.className='byo-dot';
     if(remaining<=i) d.classList.add('used');
-    else if(inByo && i===remaining-1) d.classList.add('current');
+    else if(inByo&&i===remaining-1) d.classList.add('current');
   }
 }
-
 function updateHalfClasses() {
   const p1h=document.getElementById('p1-half'), p2h=document.getElementById('p2-half');
   const t1=document.getElementById('tap-hint-1'), t2=document.getElementById('tap-hint-2');
   p1h.classList.remove('active','inactive'); p2h.classList.remove('active','inactive');
-  if (state.phase==='idle') {
-    p1h.classList.add('inactive'); p2h.classList.add('inactive');
-    t1.style.display='flex'; t2.style.display='flex';
-  } else {
-    t1.style.display='none'; t2.style.display='none';
-    if(state.active===1){ p1h.classList.add('active'); p2h.classList.add('inactive'); }
-    else if(state.active===2){ p2h.classList.add('active'); p1h.classList.add('inactive'); }
-    else { p1h.classList.add('inactive'); p2h.classList.add('inactive'); }
+  if (state.phase==='idle') { p1h.classList.add('inactive'); p2h.classList.add('inactive'); t1.style.display='flex'; t2.style.display='flex'; }
+  else { t1.style.display='none'; t2.style.display='none';
+    if(state.active===1){p1h.classList.add('active');p2h.classList.add('inactive');}
+    else if(state.active===2){p2h.classList.add('active');p1h.classList.add('inactive');}
+    else{p1h.classList.add('inactive');p2h.classList.add('inactive');}
   }
 }
+
+// ════════════════════════════════════════════════════════
+// LAYOUT
+// ════════════════════════════════════════════════════════
+let currentLayout = loadLayout();
+function applyLayout(l) {
+  currentLayout=l;
+  document.getElementById('clock-page').classList.toggle('side-by-side',l==='side');
+  document.getElementById('layout-stacked').classList.toggle('selected',l==='stacked');
+  document.getElementById('layout-side').classList.toggle('selected',l==='side');
+}
+function setLayout(l) { applyLayout(l); saveLayout(l); }
 
 // ════════════════════════════════════════════════════════
 // TICK
 // ════════════════════════════════════════════════════════
-
-// Returns the beep threshold for a byo-yomi period:
-// periods <= 10s → last 5s; periods > 10s → last 10s
-function byoBeepThreshold() {
-  return settings.byoTime <= 10 ? 5 : 10;
-}
-
+function byoBeepThreshold() { return settings.byoTime<=10?5:10; }
 function tick() {
-  const pid = state.active;
-  const p   = pid===1 ? state.p1 : state.p2;
-  const sys = settings.system;
-
+  const pid=state.active, p=pid===1?state.p1:state.p2, sys=settings.system;
   if (sys==='japanese') {
     if (!p.inByo) {
-      p.main -= 1;
-      if (p.main <= 0) { p.main=0; p.inByo=true; setDanger(pid,false); }
-      else if (p.main <= 10) {
-        playBeep(1 - p.main/10);
-        setDanger(pid, true);
-        pulseTime(pid);
-      } else {
-        setDanger(pid, false);
-      }
+      p.main-=1;
+      if (p.main<=0) { p.main=0; p.inByo=true; setDanger(pid,false); }
+      else if (p.main<=10) { playBeep(1-p.main/10); setDanger(pid,true); pulseTime(pid); }
+      else setDanger(pid,false);
     }
     if (p.inByo) {
-      p.byoLeft -= 1;
-      if (p.byoLeft <= 0) {
-        p.byoCount -= 1;
-        if (p.byoCount <= 0) { setDanger(pid,false); expire(); return; }
-        p.byoLeft = p.byoTotal;
-        setDanger(pid, false); // new period — reset
-      }
-      const thresh = byoBeepThreshold();
-      if (p.byoLeft > 0 && p.byoLeft <= thresh) {
-        playBeep(1 - p.byoLeft / thresh);
-        setDanger(pid, true);
-        pulseTime(pid);
-      } else if (p.byoLeft > thresh) {
-        setDanger(pid, false);
-      }
+      p.byoLeft-=1;
+      if (p.byoLeft<=0) { p.byoCount-=1; if(p.byoCount<=0){setDanger(pid,false);expire();return;} p.byoLeft=p.byoTotal; setDanger(pid,false); }
+      const th=byoBeepThreshold();
+      if(p.byoLeft>0&&p.byoLeft<=th){playBeep(1-p.byoLeft/th);setDanger(pid,true);pulseTime(pid);}
+      else if(p.byoLeft>th) setDanger(pid,false);
     }
-
   } else if (sys==='sudden') {
-    p.main -= 1;
-    if (p.main <= 0) { setDanger(pid,false); expire(); return; }
-    if (p.main <= 10) {
-      playBeep(1 - p.main/10);
-      setDanger(pid, true);
-      pulseTime(pid);
-    } else {
-      setDanger(pid, false);
-    }
-
+    p.main-=1;
+    if(p.main<=0){setDanger(pid,false);expire();return;}
+    if(p.main<=10){playBeep(1-p.main/10);setDanger(pid,true);pulseTime(pid);}
+    else setDanger(pid,false);
   } else if (sys==='canadian') {
-    if (!p.inByo) {
-      p.main -= 1;
-      if (p.main <= 0) { p.main=0; p.inByo=true; p.byoLeft=p.byoTotal; p.movesInPeriod=0; setDanger(pid,false); }
-      else if (p.main <= 10) {
-        playBeep(1 - p.main/10);
-        setDanger(pid, true);
-        pulseTime(pid);
-      } else {
-        setDanger(pid, false);
-      }
+    if(!p.inByo){
+      p.main-=1;
+      if(p.main<=0){p.main=0;p.inByo=true;p.byoLeft=p.byoTotal;p.movesInPeriod=0;setDanger(pid,false);}
+      else if(p.main<=10){playBeep(1-p.main/10);setDanger(pid,true);pulseTime(pid);}
+      else setDanger(pid,false);
     } else {
-      p.byoLeft -= 1;
-      if (p.byoLeft <= 0) { setDanger(pid,false); expire(); return; }
-      const thresh = byoBeepThreshold();
-      if (p.byoLeft <= thresh) {
-        playBeep(1 - p.byoLeft / thresh);
-        setDanger(pid, true);
-        pulseTime(pid);
-      } else {
-        setDanger(pid, false);
-      }
+      p.byoLeft-=1;
+      if(p.byoLeft<=0){setDanger(pid,false);expire();return;}
+      const th=byoBeepThreshold();
+      if(p.byoLeft<=th){playBeep(1-p.byoLeft/th);setDanger(pid,true);pulseTime(pid);}
+      else setDanger(pid,false);
     }
-
   } else if (sys==='fischer') {
-    p.main -= 1;
-    if (p.main <= 0) { setDanger(pid,false); expire(); return; }
-    if (p.main <= 10) {
-      playBeep(1 - p.main/10);
-      setDanger(pid, true);
-      pulseTime(pid);
-    } else {
-      setDanger(pid, false);
-    }
-
+    p.main-=1;
+    if(p.main<=0){setDanger(pid,false);expire();return;}
+    if(p.main<=10){playBeep(1-p.main/10);setDanger(pid,true);pulseTime(pid);}
+    else setDanger(pid,false);
   } else if (sys==='simple') {
-    p.main -= 1;
-    if (p.main <= 0) { setDanger(pid,false); expire(); return; }
-    // Simple: treat the whole move like a byo-yomi period
-    const thresh = byoBeepThreshold();
-    if (p.main <= thresh) {
-      playBeep(1 - p.main / thresh);
-      setDanger(pid, true);
-      pulseTime(pid);
-    } else {
-      setDanger(pid, false);
-    }
+    p.main-=1;
+    if(p.main<=0){setDanger(pid,false);expire();return;}
+    const th=byoBeepThreshold();
+    if(p.main<=th){playBeep(1-p.main/th);setDanger(pid,true);pulseTime(pid);}
+    else setDanger(pid,false);
   }
-
   updateDisplay(pid);
+  pushRemoteState();
 }
-
-function pulseTime(pid) {
-  const el=document.getElementById(`p${pid}-time`);
-  el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
-}
-
+function pulseTime(pid) { const el=document.getElementById(`p${pid}-time`); el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
 function expire() {
   clearInterval(state.interval); state.phase='expired';
-  updateDisplay(state.active); updateHalfClasses(); showExpired(state.active);
+  updateDisplay(state.active); updateHalfClasses(); updateMoveCounter();
+  showExpired(state.active); pushRemoteState();
 }
 
 // ════════════════════════════════════════════════════════
 // TURN SWITCHING
 // ════════════════════════════════════════════════════════
 function switchTurn(fromPid) {
-  if (state.phase==='expired') return;
-
-  if (state.phase==='idle') {
+  if(state.phase==='expired') return;
+  if(state.phase==='idle'){
     initPlayers(); updateDisplay(1); updateDisplay(2);
-    setDanger(1, false); setDanger(2, false);
+    setDanger(1,false); setDanger(2,false);
     playPop(); createRipple(fromPid);
     startPlayer(fromPid===1?2:1); return;
   }
-
-  if (state.phase==='paused') return;
-  if (state.active!==fromPid) return;
-
+  if(state.phase==='paused') return;
+  if(state.active!==fromPid) return;
   const p=fromPid===1?state.p1:state.p2, sys=settings.system;
-
-  if (sys==='japanese'&&p.inByo) p.byoLeft=p.byoTotal;
-  if (sys==='canadian'&&p.inByo) {
-    p.movesInPeriod+=1;
-    if(p.movesInPeriod>=p.movesRequired){ p.movesInPeriod=0; p.byoLeft=p.byoTotal; }
-  }
-  if (sys==='fischer') p.main+=p.inc;
-  if (sys==='simple') p.main=p.moveTotal;
-
-  // Clear danger flash from the player who just moved
-  setDanger(fromPid, false);
-
+  if(sys==='japanese'&&p.inByo) p.byoLeft=p.byoTotal;
+  if(sys==='canadian'&&p.inByo){p.movesInPeriod+=1;if(p.movesInPeriod>=p.movesRequired){p.movesInPeriod=0;p.byoLeft=p.byoTotal;}}
+  if(sys==='fischer') p.main+=p.inc;
+  if(sys==='simple') p.main=p.moveTotal;
+  state.moves+=1;
+  setDanger(fromPid,false);
   playPop(); createRipple(fromPid);
   startPlayer(fromPid===1?2:1);
+  updateMoveCounter();
+  pushRemoteState();
 }
-
 function startPlayer(pid) {
-  if(settings.system==='simple'){ const np=pid===1?state.p1:state.p2; np.main=np.moveTotal; }
+  if(settings.system==='simple'){const np=pid===1?state.p1:state.p2;np.main=np.moveTotal;}
   state.active=pid; state.phase='running';
   updateHalfClasses(); clearInterval(state.interval);
   state.interval=setInterval(tick,1000);
 }
-
 function togglePause() {
   if(state.phase==='idle'||state.phase==='expired') return;
   if(state.phase==='running'){
@@ -908,19 +663,16 @@ function togglePause() {
     state.phase='running'; state.interval=setInterval(tick,1000);
     document.getElementById('btn-pause').textContent='Pause';
   }
-  updateHalfClasses();
+  updateHalfClasses(); pushRemoteState();
 }
-
 function resetGame() {
   clearInterval(state.interval); state.phase='idle'; state.active=null; initPlayers();
   document.getElementById('btn-pause').textContent='Pause';
   document.getElementById('expired-overlay').classList.remove('show');
-  setDanger(1, false); setDanger(2, false);
-  updateDisplay(1); updateDisplay(2); updateHalfClasses(); updateTapBubbles();
+  setDanger(1,false); setDanger(2,false);
+  updateDisplay(1); updateDisplay(2); updateHalfClasses(); updateTapBubbles(); updateMoveCounter();
+  pushRemoteState();
 }
-
-function cancelGame() { resetGame(); showToast('Game cancelled'); }
-
 function showExpired(pid) {
   document.getElementById('expired-who').textContent=(pid===1?'Black':'White')+' loses on time';
   document.getElementById('expired-overlay').classList.add('show');
@@ -931,39 +683,31 @@ function showExpired(pid) {
 // ════════════════════════════════════════════════════════
 let audioCtx;
 function getAudio(){ if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
-function playPop(){
-  try {
-    const ctx=getAudio(),now=ctx.currentTime;
-    [[800,200,0.3,0.08,'square'],[1200,600,0.15,0.05,'sine']].forEach(([f1,f2,g,d,t])=>{
-      const o=ctx.createOscillator(),gn=ctx.createGain();
-      o.type=t; o.frequency.setValueAtTime(f1,now); o.frequency.exponentialRampToValueAtTime(f2,now+d);
-      gn.gain.setValueAtTime(g,now); gn.gain.exponentialRampToValueAtTime(0.001,now+d);
-      o.connect(gn); gn.connect(ctx.destination); o.start(now); o.stop(now+d);
-    });
-  }catch(e){}
-}
-
-function playBeep(urgency) {
-  // urgency 0..1: higher = shorter, shriller beep (counts down from 10→1)
+function playPop() {
   try {
     const ctx=getAudio(), now=ctx.currentTime;
-    // Frequency rises as urgency increases: 480 Hz at urgency=0, 880 Hz at urgency=1
-    const freq = 480 + urgency * 400;
-    const dur  = 0.07 + (1 - urgency) * 0.04; // 0.11s → 0.07s
+    [[800,200,.3,.08,'square'],[1200,600,.15,.05,'sine']].forEach(([f1,f2,g,d,t])=>{
+      const o=ctx.createOscillator(), gn=ctx.createGain();
+      o.type=t; o.frequency.setValueAtTime(f1,now); o.frequency.exponentialRampToValueAtTime(f2,now+d);
+      gn.gain.setValueAtTime(g,now); gn.gain.exponentialRampToValueAtTime(.001,now+d);
+      o.connect(gn); gn.connect(ctx.destination); o.start(now); o.stop(now+d);
+    });
+  } catch(e){}
+}
+function playBeep(urgency) {
+  try {
+    const ctx=getAudio(), now=ctx.currentTime;
+    const freq=520+urgency*400, dur=.18-urgency*.09, atk=.012, rel=dur*.55;
     const o=ctx.createOscillator(), gn=ctx.createGain();
-    o.type='sine';
-    o.frequency.setValueAtTime(freq, now);
-    gn.gain.setValueAtTime(0.22, now);
-    gn.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    o.connect(gn); gn.connect(ctx.destination);
-    o.start(now); o.stop(now + dur);
-  } catch(e) {}
+    o.type='sine'; o.frequency.setValueAtTime(freq,now);
+    gn.gain.setValueAtTime(0,now);
+    gn.gain.linearRampToValueAtTime(.28,now+atk);
+    gn.gain.setValueAtTime(.28,now+dur-rel);
+    gn.gain.exponentialRampToValueAtTime(.0001,now+dur);
+    o.connect(gn); gn.connect(ctx.destination); o.start(now); o.stop(now+dur+.02);
+  } catch(e){}
 }
-
-function setDanger(pid, on) {
-  const el = document.getElementById(`p${pid}-half`);
-  el.classList.toggle('danger-pulse', on);
-}
+function setDanger(pid,on) { document.getElementById(`p${pid}-half`).classList.toggle('danger-pulse',on); }
 
 // ════════════════════════════════════════════════════════
 // RIPPLE
@@ -978,37 +722,21 @@ function createRipple(pid) {
 // ════════════════════════════════════════════════════════
 // DROPDOWN
 // ════════════════════════════════════════════════════════
-let dropdownOpen=false;
-let currentSystem=settings.system;
-
-function toggleDropdown() {
-  dropdownOpen=!dropdownOpen;
-  document.getElementById('ts-trigger').classList.toggle('open',dropdownOpen);
-  document.getElementById('ts-panel').classList.toggle('open',dropdownOpen);
-}
-function closeDropdown() {
-  dropdownOpen=false;
-  document.getElementById('ts-trigger').classList.remove('open');
-  document.getElementById('ts-panel').classList.remove('open');
-}
+let dropdownOpen=false, currentSystem=settings.system;
+function toggleDropdown() { dropdownOpen=!dropdownOpen; document.getElementById('ts-trigger').classList.toggle('open',dropdownOpen); document.getElementById('ts-panel').classList.toggle('open',dropdownOpen); }
+function closeDropdown()  { dropdownOpen=false; document.getElementById('ts-trigger').classList.remove('open'); document.getElementById('ts-panel').classList.remove('open'); }
 function buildDropdown() {
   const panel=document.getElementById('ts-panel'); panel.innerHTML='';
   SYSTEM_ORDER.forEach(id=>{
     const sys=TIME_SYSTEMS[id];
     const opt=document.createElement('div');
-    opt.className='csp-option'+(id===currentSystem?' selected':'');
-    opt.dataset.id=id;
-    opt.innerHTML=`
-      <div class="csp-icon">${sys.icon}</div>
-      <div class="csp-text"><div class="csp-name">${sys.name}</div><div class="csp-hint">${sys.shortDesc}</div></div>
-      <div class="csp-check">✓</div>`;
-    opt.addEventListener('click',()=>selectSystem(id));
-    panel.appendChild(opt);
+    opt.className='csp-option'+(id===currentSystem?' selected':''); opt.dataset.id=id;
+    opt.innerHTML=`<div class="csp-icon">${sys.icon}</div><div class="csp-text"><div class="csp-name">${sys.name}</div><div class="csp-hint">${sys.shortDesc}</div></div><div class="csp-check">✓</div>`;
+    opt.addEventListener('click',()=>selectSystem(id)); panel.appendChild(opt);
   });
 }
 function selectSystem(id) {
-  currentSystem=id;
-  const sys=TIME_SYSTEMS[id];
+  currentSystem=id; const sys=TIME_SYSTEMS[id];
   document.getElementById('ts-value').textContent=sys.name;
   document.getElementById('ts-desc').textContent=sys.shortDesc;
   document.querySelectorAll('.csp-option').forEach(o=>o.classList.toggle('selected',o.dataset.id===id));
@@ -1021,44 +749,28 @@ function selectSystem(id) {
 // TIME FIELDS
 // ════════════════════════════════════════════════════════
 function buildTimeFields(sysId) {
-  const sys=TIME_SYSTEMS[sysId];
-  const container=document.getElementById('time-fields');
+  const sys=TIME_SYSTEMS[sysId], container=document.getElementById('time-fields');
   container.innerHTML='';
   if(!sys.fields.length) return;
-
-  const lbl=document.createElement('div');
-  lbl.className='section-label'; lbl.textContent='Time Settings'; lbl.style.marginTop='28px';
+  const lbl=document.createElement('div'); lbl.className='section-label'; lbl.textContent='Time Settings'; lbl.style.marginTop='28px';
   container.appendChild(lbl);
-
   sys.fields.forEach(f=>{
     const val=settings[f.id]!==undefined?settings[f.id]:sys.defaults[f.id];
     const row=document.createElement('div'); row.className='time-row';
     let inputHTML='';
     if(f.type==='mmss'){
-      const m=Math.floor(val/60),s=val%60;
-      inputHTML=`<div class="time-input-group">
-        <input class="time-input" type="number" id="f-${f.id}-m" min="0" max="999" value="${m}" title="Minutes">
-        <span class="time-colon">:</span>
-        <input class="time-input" type="number" id="f-${f.id}-s" min="0" max="59" value="${s}" title="Seconds">
-      </div>`;
+      const m=Math.floor(val/60), s=val%60;
+      inputHTML=`<div class="time-input-group"><input class="time-input" type="number" id="f-${f.id}-m" min="0" max="999" value="${m}"><span class="time-colon">:</span><input class="time-input" type="number" id="f-${f.id}-s" min="0" max="59" value="${s}"></div>`;
     } else {
-      inputHTML=`<div class="time-input-group">
-        <input class="count-input" type="number" id="f-${f.id}" min="1" max="999" value="${val}">
-        <span class="row-unit">${f.unit||''}</span>
-      </div>`;
+      inputHTML=`<div class="time-input-group"><input class="count-input" type="number" id="f-${f.id}" min="1" max="999" value="${val}"><span class="row-unit">${f.unit||''}</span></div>`;
     }
     row.innerHTML=`<div class="time-row-lhs"><div class="time-row-label">${f.label}</div><div class="time-row-sublabel">${f.sub}</div></div>${inputHTML}`;
     container.appendChild(row);
   });
 }
-
-function buildRulesBox(sysId) {
-  document.getElementById('rules-text').innerHTML=TIME_SYSTEMS[sysId].rules;
-}
-
+function buildRulesBox(sysId) { document.getElementById('rules-text').innerHTML=TIME_SYSTEMS[sysId].rules; }
 function readTimeFields() {
-  const sys=TIME_SYSTEMS[currentSystem];
-  const out={system:currentSystem};
+  const sys=TIME_SYSTEMS[currentSystem], out={system:currentSystem};
   sys.fields.forEach(f=>{
     if(f.type==='mmss'){
       const m=parseInt(document.getElementById(`f-${f.id}-m`).value)||0;
@@ -1075,18 +787,16 @@ function readTimeFields() {
 // SETTINGS PAGE
 // ════════════════════════════════════════════════════════
 function loadSettingsUI() {
-  currentSystem=settings.system;
-  const sys=TIME_SYSTEMS[currentSystem];
+  currentSystem=settings.system; const sys=TIME_SYSTEMS[currentSystem];
   document.getElementById('ts-value').textContent=sys.name;
   document.getElementById('ts-desc').textContent=sys.shortDesc;
   document.getElementById('sh-subtitle').textContent=sys.name;
   buildDropdown(); buildTimeFields(currentSystem); buildRulesBox(currentSystem);
+  document.getElementById('layout-stacked').classList.toggle('selected',currentLayout==='stacked');
+  document.getElementById('layout-side').classList.toggle('selected',currentLayout==='side');
+  renderRemoteSection();
 }
-
-function saveAndApply() {
-  const s=readTimeFields(); saveSettings(s); resetGame(); showToast('Settings applied');
-}
-function applyAndPlay() { saveAndApply(); showClock(); }
+function applyAndPlay() { const s=readTimeFields(); saveSettings(s); resetGame(); showClock(); }
 
 // ════════════════════════════════════════════════════════
 // PRESETS
@@ -1097,131 +807,234 @@ function fmtDur(secs) {
   return secs+'s';
 }
 function presetLabel(p) {
-  const sys=p.system;
-  if(sys==='japanese') return `${fmtDur(p.mainTime)} + ${p.byoCount}×${fmtDur(p.byoTime)}`;
-  if(sys==='sudden')   return `${fmtDur(p.mainTime)} SD`;
-  if(sys==='canadian') return `${fmtDur(p.mainTime)} + ${p.movesPerPeriod}mv/${fmtDur(p.byoTime)}`;
-  if(sys==='fischer')  return `${fmtDur(p.mainTime)} +${p.increment}s`;
-  if(sys==='simple')   return `${fmtDur(p.moveTime)} / move`;
+  if(p.system==='japanese') return `${fmtDur(p.mainTime)} + ${p.byoCount}×${fmtDur(p.byoTime)}`;
+  if(p.system==='sudden')   return `${fmtDur(p.mainTime)} SD`;
+  if(p.system==='canadian') return `${fmtDur(p.mainTime)} + ${p.movesPerPeriod}mv/${fmtDur(p.byoTime)}`;
+  if(p.system==='fischer')  return `${fmtDur(p.mainTime)} +${p.increment}s`;
+  if(p.system==='simple')   return `${fmtDur(p.moveTime)} / move`;
   return '';
 }
-
 function saveCurrentAsPreset() {
   const s=readTimeFields();
-  const name=prompt('Preset name:',presetLabel(s));
-  if(!name) return;
-  presets.push({name,...s}); savePresets(presets); renderPresets(); showToast(`"${name}" saved`);
+  showModal('Save Preset','Give this configuration a name','e.g. Tournament 30m',presetLabel(s),'Save',(name)=>{
+    presets.push({name,...s}); savePresets(presets); renderPresets(); showToast(`"${name}" saved`);
+  });
 }
 function deletePreset(idx){ presets.splice(idx,1); savePresets(presets); renderPresets(); }
-function loadPreset(idx) {
-  const p=presets[idx]; settings={...DEFAULT_SETTINGS,...p}; saveSettings(settings);
-  loadSettingsUI(); renderPresets(); showToast(`Loaded "${p.name}"`);
-}
+function loadPreset(idx) { const p=presets[idx]; settings={...DEFAULT_SETTINGS,...p}; saveSettings(settings); loadSettingsUI(); renderPresets(); showToast(`Loaded "${p.name}"`); }
 function renderPresets() {
   const grid=document.getElementById('presets-grid'); grid.innerHTML='';
+  if(!presets.length){ grid.innerHTML=`<div style="grid-column:1/-1;font-size:12px;opacity:.3;font-family:'DM Mono',monospace;padding:8px 0;">No presets yet — save your first configuration above.</div>`; return; }
   presets.forEach((p,i)=>{
     const card=document.createElement('div');
-    const isSel=(p.system===settings.system && presetLabel(p)===presetLabel(settings));
-    card.className='preset-card'+(isSel?' selected':'');
-    const sysInfo=TIME_SYSTEMS[p.system];
-    card.innerHTML=`
-      <div class="preset-name">${p.name}</div>
-      <div class="preset-system">${sysInfo?.icon||''} ${sysInfo?.name||p.system}</div>
-      <div class="preset-desc">${presetLabel(p)}</div>
-      ${i>0?`<button class="delete-preset" onclick="event.stopPropagation();deletePreset(${i})">✕</button>`:''}`;
-    card.addEventListener('click',()=>loadPreset(i));
-    grid.appendChild(card);
+    card.className='preset-card'+(p.system===settings.system&&presetLabel(p)===presetLabel(settings)?' selected':'');
+    const si=TIME_SYSTEMS[p.system];
+    card.innerHTML=`<div class="preset-name">${p.name}</div><div class="preset-system">${si?.icon||''} ${si?.name||p.system}</div><div class="preset-desc">${presetLabel(p)}</div><button class="delete-preset" onclick="event.stopPropagation();deletePreset(${i})">✕</button>`;
+    card.addEventListener('click',()=>loadPreset(i)); grid.appendChild(card);
   });
 }
 
 // ════════════════════════════════════════════════════════
-// TAP BUBBLES
+// REMOTE PLAY  (Firebase Firestore)
+// ════════════════════════════════════════════════════════
+let remoteSession = null; // { roomId, role, unsub }
+let ignoreNext    = false;
+let pushTimer     = null;
+
+function makeRoomCode() {
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+}
+
+function encodeState() {
+  return {
+    phase:state.phase, active:state.active, moves:state.moves,
+    p1:state.p1?{...state.p1}:null, p2:state.p2?{...state.p2}:null,
+    settings:{...settings}, ts:Date.now(),
+  };
+}
+
+function pushRemoteState() {
+  if(!remoteSession) return;
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(async ()=>{
+    try { ignoreNext=true; await setDoc(doc(db,'rooms',remoteSession.roomId),encodeState()); }
+    catch(e){ console.warn('Remote push error',e); }
+  }, 100);
+}
+
+function applyRemoteSnapshot(data) {
+  if(!data) return;
+  // Sync settings
+  if(data.settings?.system){ settings={...DEFAULT_SETTINGS,...data.settings}; saveSettings(settings); updateTapBubbles(); }
+  // Restore state
+  clearInterval(state.interval);
+  state.phase=data.phase; state.active=data.active; state.moves=data.moves||0;
+  state.p1=data.p1?{...data.p1}:makePlayer();
+  state.p2=data.p2?{...data.p2}:makePlayer();
+  if(state.phase==='running'){ state.interval=setInterval(tick,1000); document.getElementById('btn-pause').textContent='Pause'; }
+  else if(state.phase==='paused'){ document.getElementById('btn-pause').textContent='Resume'; }
+  else if(state.phase==='expired'){ showExpired(state.active); }
+  else { document.getElementById('btn-pause').textContent='Pause'; }
+  updateDisplay(1); updateDisplay(2); updateHalfClasses(); updateMoveCounter();
+}
+
+async function startHosting() {
+  const roomId=makeRoomCode();
+  remoteSession={roomId,role:'host',unsub:null};
+  try {
+    ignoreNext=true;
+    await setDoc(doc(db,'rooms',roomId),encodeState());
+    remoteSession.unsub=onSnapshot(doc(db,'rooms',roomId),snap=>{
+      if(!snap.exists()) return;
+      if(ignoreNext){ignoreNext=false;return;}
+      applyRemoteSnapshot(snap.data());
+    });
+    updateRemoteUI(); renderRemoteSection(); showToast('Room ready — share code '+roomId);
+  } catch(e){ remoteSession=null; showToast('Could not create room'); console.error(e); }
+}
+
+async function joinRoom(roomId) {
+  roomId=roomId.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(roomId.length<4){ showToast('Enter a valid room code'); return; }
+  remoteSession={roomId,role:'guest',unsub:null};
+  remoteSession.unsub=onSnapshot(doc(db,'rooms',roomId),snap=>{
+    if(!snap.exists()){ showToast('Room not found'); leaveRoom(); return; }
+    if(ignoreNext){ignoreNext=false;return;}
+    applyRemoteSnapshot(snap.data());
+  });
+  updateRemoteUI(); renderRemoteSection(); showToast('Joined room '+roomId);
+}
+
+function leaveRoom() {
+  if(remoteSession?.unsub) remoteSession.unsub();
+  remoteSession=null; updateRemoteUI(); renderRemoteSection(); showToast('Left session');
+}
+
+function copyCode() {
+  if(!remoteSession) return;
+  navigator.clipboard?.writeText(remoteSession.roomId).then(()=>showToast('Code copied!')).catch(()=>showToast(remoteSession.roomId));
+}
+
+function updateRemoteUI() {
+  const bar=document.getElementById('remote-bar');
+  if(remoteSession){
+    bar.classList.add('active');
+    document.getElementById('remote-code-display').textContent=remoteSession.roomId;
+    const badge=document.getElementById('remote-badge');
+    badge.textContent=remoteSession.role==='host'?'Hosting':'Joined';
+    badge.className='remote-badge '+(remoteSession.role==='host'?'host':'guest');
+  } else {
+    bar.classList.remove('active');
+  }
+}
+
+function renderRemoteSection() {
+  const el=document.getElementById('remote-section-ui');
+  if(remoteSession){
+    // Active session UI
+    el.innerHTML=`
+      <div class="remote-status-row">
+        <div class="remote-status-code">${remoteSession.roomId}</div>
+        <button class="remote-copy-btn" onclick="copyCode()">Copy</button>
+        <button class="remote-action-btn" style="margin-left:4px;" onclick="leaveRoom()">Leave</button>
+      </div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;opacity:.35;margin-top:8px;line-height:1.6;">
+        ${remoteSession.role==='host'?'You created this room. Share the 6-letter code with your opponent — they tap "Join" in their Settings and enter it. Both clocks stay in sync.':'Connected to a remote clock. Any tap on either device is reflected on both.'}
+      </div>`;
+  } else {
+    // Lobby UI: Host + Join side by side
+    el.innerHTML=`
+      <div class="remote-panels">
+        <div class="remote-panel">
+          <div class="remote-panel-title">Host</div>
+          <div class="remote-panel-desc">Create a room and get a 6-letter code to share.</div>
+          <button class="remote-action-btn accent" onclick="startHosting()">Create Room</button>
+        </div>
+        <div class="remote-panel">
+          <div class="remote-panel-title">Join</div>
+          <div class="remote-panel-desc">Enter the code your opponent shared.</div>
+          <div class="remote-join-row">
+            <input class="remote-code-input" id="join-code-input" placeholder="ABC123" maxlength="6" spellcheck="false" autocomplete="off" autocapitalize="characters">
+            <button class="remote-action-btn accent" onclick="joinRoom(document.getElementById('join-code-input').value)">Join</button>
+          </div>
+        </div>
+      </div>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// APP MODAL
+// ════════════════════════════════════════════════════════
+let modalCallback=null;
+function showModal(title,sub,placeholder,defaultVal,confirmLabel,callback) {
+  modalCallback=callback;
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-sub').textContent=sub;
+  const inp=document.getElementById('modal-input');
+  inp.placeholder=placeholder; inp.value=defaultVal;
+  document.getElementById('modal-confirm').textContent=confirmLabel;
+  document.getElementById('modal-backdrop').classList.add('show');
+  setTimeout(()=>{inp.focus();inp.select();},280);
+}
+function closeModal() { document.getElementById('modal-backdrop').classList.remove('show'); modalCallback=null; }
+function confirmModal() { const val=document.getElementById('modal-input').value.trim(); if(!val){document.getElementById('modal-input').focus();return;} closeModal(); if(modalCallback) modalCallback(val); }
+function handleModalBackdropClick(e) { if(e.target===document.getElementById('modal-backdrop')) closeModal(); }
+document.getElementById('modal-input').addEventListener('keydown',e=>{ if(e.key==='Enter') confirmModal(); if(e.key==='Escape') closeModal(); });
+document.getElementById('modal-confirm').addEventListener('click', confirmModal);
+
+// ════════════════════════════════════════════════════════
+// TAP BUBBLES / PAGE NAV / TOAST
 // ════════════════════════════════════════════════════════
 function updateTapBubbles() {
   const label=TIME_SYSTEMS[settings.system]?.tapLabel||'';
   document.getElementById('tap-system-1').textContent=label;
   document.getElementById('tap-system-2').textContent=label;
 }
-
-// ════════════════════════════════════════════════════════
-// PAGE NAV
-// ════════════════════════════════════════════════════════
-function showSettings() {
-  if(state.phase==='running') togglePause();
-  document.getElementById('clock-page').classList.add('hidden');
-  document.getElementById('settings-page').classList.remove('hidden');
-  loadSettingsUI(); renderPresets();
-}
-function showClock() {
-  document.getElementById('settings-page').classList.add('hidden');
-  document.getElementById('clock-page').classList.remove('hidden');
-}
-
-// ════════════════════════════════════════════════════════
-// TOAST
-// ════════════════════════════════════════════════════════
+function showSettings() { if(state.phase==='running') togglePause(); document.getElementById('clock-page').classList.add('hidden'); document.getElementById('settings-page').classList.remove('hidden'); loadSettingsUI(); renderPresets(); }
+function showClock()    { document.getElementById('settings-page').classList.add('hidden'); document.getElementById('clock-page').classList.remove('hidden'); }
 let toastTimer;
-function showToast(msg) {
-  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
-  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2200);
-}
+function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2400); }
 
 // ════════════════════════════════════════════════════════
 // EVENTS
 // ════════════════════════════════════════════════════════
-function handleHalfInteraction(pid, e) {
-  // Prevent ghost click after touchstart
-  if (e.type === 'touchstart') { e.preventDefault(); }
-  switchTurn(pid);
-}
-
-document.getElementById('p1-half').addEventListener('touchstart', e => handleHalfInteraction(1, e), { passive: false });
-document.getElementById('p2-half').addEventListener('touchstart', e => handleHalfInteraction(2, e), { passive: false });
-document.getElementById('p1-half').addEventListener('click', e => { if (!e.isTrusted || e._fromTouch) return; switchTurn(1); });
-document.getElementById('p2-half').addEventListener('click', e => { if (!e.isTrusted || e._fromTouch) return; switchTurn(2); });
-
-// Mark click events that follow a touchstart so we can ignore the ghost
-['p1-half','p2-half'].forEach(id => {
-  const el = document.getElementById(id);
-  el.addEventListener('touchend', () => {
-    // Set a brief flag to suppress the synthetic click
-    el._suppressClick = true;
-    setTimeout(() => { el._suppressClick = false; }, 500);
-  }, { passive: true });
-  el.addEventListener('click', e => {
-    if (el._suppressClick) e.stopImmediatePropagation();
-  }, true);
+['p1-half','p2-half'].forEach(id=>{
+  const el=document.getElementById(id), pid=id==='p1-half'?1:2;
+  el.addEventListener('touchstart',e=>{e.preventDefault();switchTurn(pid);},{passive:false});
+  let suppress=false;
+  el.addEventListener('touchend',()=>{suppress=true;setTimeout(()=>suppress=false,500);},{passive:true});
+  el.addEventListener('click',e=>{if(suppress){e.stopImmediatePropagation();return;}switchTurn(pid);},true);
 });
-
-document.addEventListener('touchmove', e => {
-  // Prevent page scroll/bounce on the clock screen
-  if (!document.getElementById('settings-page').classList.contains('hidden')) return;
+document.addEventListener('touchmove',e=>{
+  if(!document.getElementById('settings-page').classList.contains('hidden')) return;
   e.preventDefault();
-}, { passive: false });
-
-document.addEventListener('click', e => {
-  if(dropdownOpen && !document.getElementById('ts-wrap').contains(e.target)) closeDropdown();
-});
-
+},{passive:false});
+document.addEventListener('click',e=>{ if(dropdownOpen&&!document.getElementById('ts-wrap').contains(e.target)) closeDropdown(); });
 document.addEventListener('keydown',e=>{
   if(!document.getElementById('settings-page').classList.contains('hidden')) return;
-  if(e.code==='Space'||e.code==='Enter'){
-    e.preventDefault();
-    if(state.active!==null) switchTurn(state.active);
-    else switchTurn(2);
-  }
+  if(document.getElementById('modal-backdrop').classList.contains('show')) return;
+  if(e.code==='Space'||e.code==='Enter'){e.preventDefault();if(state.active!==null)switchTurn(state.active);else switchTurn(2);}
   if(e.code==='KeyP') togglePause();
   if(e.code==='KeyR') resetGame();
 });
 
+// Expose a handful of functions called from inline onclick
+window.resetGame=resetGame; window.togglePause=togglePause; window.showSettings=showSettings;
+window.showClock=showClock; window.setLayout=setLayout; window.toggleDropdown=toggleDropdown;
+window.applyAndPlay=applyAndPlay; window.saveCurrentAsPreset=saveCurrentAsPreset;
+window.deletePreset=deletePreset; window.closeModal=closeModal;
+window.handleModalBackdropClick=handleModalBackdropClick;
+window.startHosting=startHosting; window.joinRoom=joinRoom; window.leaveRoom=leaveRoom; window.copyCode=copyCode;
+
 // ════════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════════
+applyLayout(currentLayout);
 initPlayers();
-updateDisplay(1);
-updateDisplay(2);
-updateHalfClasses();
-updateTapBubbles();
+updateDisplay(1); updateDisplay(2);
+updateHalfClasses(); updateTapBubbles(); updateMoveCounter();
+updateRemoteUI();
 </script>
 </body>
 </html>
