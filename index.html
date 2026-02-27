@@ -7,7 +7,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0a">
-<title>Go Clock</title>>
+<title>Go Clock</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="favicon.png">
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 
@@ -960,6 +963,20 @@ function startML(rid){
 function promptHost(){
   showModal({title:'Your Name in Room',sub:'Others will see this.',ph:'e.g. Tanaka',def:localStorage.getItem('gc_name')||'',ok:'Create Room',cb:function(n){localStorage.setItem('gc_name',n);doHost(n)}});
 }
+
+function showRoomCodeDialog(roomCode){
+  showModal({
+    title:'Room Created',
+    sub:'Share this code so others can join your room.',
+    def:roomCode,
+    ok:'Copy Code',
+    cb:function(){
+      if(navigator.clipboard){
+        navigator.clipboard.writeText(roomCode).then(function(){toast('Code copied: '+roomCode)}).catch(function(){toast('Room code: '+roomCode)});
+      }else{toast('Room code: '+roomCode)}
+    }
+  });
+}
 function doHost(myName){
   if(!FB.ready){toast('Connecting to Firebase…');return}
   var rid=mkCode(),myId=getMyId();
@@ -969,7 +986,13 @@ function doHost(myName){
     var unR=FB.onSnapshot(FB.doc(FB.db,'rooms',rid),function(snap){if(!snap.exists())return;if(ignNext){ignNext=false;return}renderRIn()});
     var unM=startML(rid);
     RS={rid:rid,myId:myId,myName:myName,mr:'host',role:'host',so:false,unR:unR,unM:unM};
-    updRBar();renderRIn();toast('Room ready: '+rid);
+    updRBar();
+    remOpen=true;
+    gel('rtogBtn').classList.add('open');
+    gel('rcoll').classList.add('open');
+    renderRIn();
+    showRoomCodeDialog(rid);
+    toast('Room ready: '+rid);
   }).catch(function(e){toast('Could not create room');console.error(e)});
 }
 
@@ -1065,6 +1088,10 @@ function updRBar(){
 function renderRIn(){
   if(!remOpen)return;
   var el=gel('rin');
+  if(!FB.ready){
+    el.innerHTML='<div class="rinfo">Realtime service is still connecting. Please wait a moment and try again.</div>';
+    return;
+  }
   if(!RS){
     el.innerHTML='<div class="rpanels">'+
       '<div class="rpanel"><div class="rptit">Host a Room</div><div class="rpdesc">Create a room. Your time settings apply to all.</div><button class="rpbtn" id="rHostBtn">Create Room</button></div>'+
