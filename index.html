@@ -8,1143 +8,1187 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0a">
 <title>Go Clock</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="favicon.png">
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<!-- Firebase compat (no ES modules needed) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --black: #0a0a0a; --white: #f5f0e8; --accent: #c8a96e;
-  --danger: #e05a4e; --radius: 24px; --bar-h: 68px;
-  --transition: cubic-bezier(0.34, 1.56, 0.64, 1);
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0a;--fg:#f5f0e8;--acc:#c8a96e;--red:#e05a4e;--grn:#6dbf7a;
+  --r:24px;--bh:68px;--ease:cubic-bezier(.34,1.56,.64,1)
 }
-html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
-html,body { height:100%; height:100dvh; overflow:hidden; font-family:'DM Sans',sans-serif; background:var(--black); color:var(--white); user-select:none; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+html{-webkit-text-size-adjust:100%}
+html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-serif;
+  background:var(--bg);color:var(--fg);user-select:none;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation}
 
-/* ── pages ── */
-.page { position:fixed; inset:0; display:flex; flex-direction:column; transition:opacity .35s ease,transform .35s ease; }
-.page.hidden { opacity:0; pointer-events:none; transform:translateY(16px); }
+/* pages */
+.page{position:fixed;inset:0;display:flex;flex-direction:column;
+  transition:opacity .35s,transform .35s}
+.page.hidden{opacity:0;pointer-events:none;transform:translateY(16px)}
 
-/* ── clock layout ── */
-#clock-page { flex-direction:column; }
-#clock-page.side-by-side { flex-direction:row; }
-#clock-page.side-by-side .clock-half.top    { border-radius:0 var(--radius) var(--radius) 0; transform-origin:center left; }
-#clock-page.side-by-side .clock-half.bottom { border-radius:var(--radius) 0 0 var(--radius); transform-origin:center right; }
-#clock-page.side-by-side .clock-half.top .inner { transform:none; }
-#clock-page.side-by-side .clock-half.active.top    { box-shadow:20px 0 80px rgba(245,240,232,.22),4px 0 20px rgba(245,240,232,.12); transform:translateX(-5px); }
-#clock-page.side-by-side .clock-half.active.bottom { box-shadow:-20px 0 80px rgba(245,240,232,.22),-4px 0 20px rgba(245,240,232,.12); transform:translateX(5px); }
-#clock-page.side-by-side .controls-bar { flex-direction:column; width:var(--bar-h); height:100%; border-top:none; border-bottom:none; border-left:1px solid rgba(245,240,232,.06); border-right:1px solid rgba(245,240,232,.06); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom); gap:12px; }
-#clock-page.side-by-side .logo { position:static; writing-mode:vertical-rl; transform:rotate(180deg); margin-bottom:auto; }
-#clock-page.side-by-side .settings-icon-btn { position:static; margin-top:auto; }
-#clock-page.side-by-side .move-counter { writing-mode:vertical-rl; }
-#clock-page.side-by-side .remote-bar { flex-direction:column; writing-mode:vertical-rl; height:auto; width:auto; padding:0; }
+/* clock layout */
+#cp{flex-direction:column}
+#cp.sbs{flex-direction:row}
+#cp.sbs .half.top{border-radius:0 var(--r) var(--r) 0;transform-origin:center left}
+#cp.sbs .half.bot{border-radius:var(--r) 0 0 var(--r);transform-origin:center right}
+#cp.sbs .half.top .inn{transform:none}
+#cp.sbs .half.act.top{box-shadow:20px 0 80px rgba(245,240,232,.22);transform:translateX(-5px)}
+#cp.sbs .half.act.bot{box-shadow:-20px 0 80px rgba(245,240,232,.22);transform:translateX(5px)}
+#cp.sbs .cbar{flex-direction:column;width:var(--bh);height:100%;border-top:none;border-bottom:none;
+  border-left:1px solid rgba(245,240,232,.06);border-right:1px solid rgba(245,240,232,.06);
+  padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);gap:12px}
+#cp.sbs .logo{position:static;writing-mode:vertical-rl;transform:rotate(180deg);margin-bottom:auto}
+#cp.sbs .sibtn{position:static;margin-top:auto}
+#cp.sbs .mvctr{writing-mode:vertical-rl}
+#cp.sbs .rbar{writing-mode:vertical-rl;width:auto;border-bottom:none;
+  border-right:1px solid rgba(245,240,232,.06)}
 
-/* ── clock halves ── */
-.clock-half { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; position:relative; transition:background .3s,box-shadow .4s,transform .4s var(--transition),filter .3s; outline:none; gap:clamp(10px,2vh,16px); padding:clamp(16px,4vw,30px); -webkit-tap-highlight-color:transparent; }
-.clock-half.top    { transform-origin:center top;    border-radius:0 0 var(--radius) var(--radius); }
-.clock-half.bottom { transform-origin:center bottom; border-radius:var(--radius) var(--radius) 0 0; }
-.clock-half.inactive { background:var(--black); color:var(--white); filter:brightness(.7); }
-.clock-half.active   { background:var(--white); color:var(--black); }
-.clock-half.active.bottom { box-shadow:0 -20px 80px rgba(245,240,232,.22),0 -4px 20px rgba(245,240,232,.12); transform:translateY(-5px); }
-.clock-half.active.top    { box-shadow:0  20px 80px rgba(245,240,232,.22),0  4px 20px rgba(245,240,232,.12); transform:translateY(5px); }
+/* halves */
+.half{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;position:relative;
+  transition:background .3s,box-shadow .4s,transform .4s var(--ease),filter .3s;
+  outline:none;gap:clamp(10px,2vh,16px);padding:clamp(16px,4vw,30px)}
+.half.top{transform-origin:center top;border-radius:0 0 var(--r) var(--r)}
+.half.bot{transform-origin:center bottom;border-radius:var(--r) var(--r) 0 0}
+.half.off{background:var(--bg);color:var(--fg);filter:brightness(.7)}
+.half.act{background:var(--fg);color:var(--bg)}
+.half.act.bot{box-shadow:0 -20px 80px rgba(245,240,232,.22);transform:translateY(-5px)}
+.half.act.top{box-shadow:0 20px 80px rgba(245,240,232,.22);transform:translateY(5px)}
+.half.lk{cursor:not-allowed}
 
-/* ── danger flash ── */
-.clock-half.danger-pulse::after { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:2; animation:dangerEdge .55s ease-in-out infinite; }
-@keyframes dangerEdge {
-  0%,100% { box-shadow:inset 0 0 0px 0px rgba(160,10,0,0); background:rgba(160,10,0,0); }
-  50%      { box-shadow:inset 0 0 160px 60px rgba(160,10,0,.72); background:rgba(160,10,0,.08); }
+/* danger */
+.half.dp::after{content:'';position:absolute;inset:0;border-radius:inherit;
+  pointer-events:none;z-index:2;animation:de .55s ease-in-out infinite}
+@keyframes de{
+  0%,100%{box-shadow:inset 0 0 0 0 rgba(160,10,0,0);background:rgba(160,10,0,0)}
+  50%{box-shadow:inset 0 0 160px 60px rgba(160,10,0,.72);background:rgba(160,10,0,.08)}
 }
-.clock-half.danger-pulse .time-display { color:#c81500 !important; }
+.half.dp .td{color:#c81500!important}
 
-.clock-half.top .inner { transform:rotate(180deg); display:flex; flex-direction:column; align-items:center; gap:clamp(10px,2vh,14px); }
-.player-label { font-size:clamp(9px,2vw,11px); font-weight:500; letter-spacing:.25em; text-transform:uppercase; opacity:.5; }
-.time-display { font-family:'DM Mono',monospace; font-size:clamp(44px,16vmin,100px); font-weight:300; letter-spacing:-.02em; line-height:1; transition:color .2s,transform .15s; }
-.time-display.pulse { animation:timePulse .08s ease; }
-@keyframes timePulse { 0%{transform:scale(1)} 50%{transform:scale(.96)} 100%{transform:scale(1)} }
-.sub-info { font-family:'DM Mono',monospace; font-size:clamp(11px,2.5vw,13px); letter-spacing:.05em; opacity:.55; display:flex; align-items:center; gap:8px; min-height:18px; flex-wrap:wrap; justify-content:center; }
-.byo-dot { width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.4; transition:opacity .2s,transform .2s; flex-shrink:0; }
-.byo-dot.used { opacity:.12; }
-.byo-dot.current { opacity:1; transform:scale(1.4); animation:dotPulse 1s ease-in-out infinite; }
-@keyframes dotPulse { 0%,100%{transform:scale(1.4)} 50%{transform:scale(1)} }
-.byo-progress { height:3px; background:rgba(245,240,232,.1); width:min(80%,200px); border-radius:2px; overflow:hidden; }
-.clock-half.active .byo-progress { background:rgba(0,0,0,.1); }
-.byo-progress-fill { height:100%; background:currentColor; transition:width .9s linear; border-radius:2px; }
-.tap-to-start { display:flex; flex-direction:row; align-items:center; gap:8px; pointer-events:none; flex-wrap:wrap; justify-content:center; }
-.tap-bubble { background:rgba(245,240,232,.1); border:1px solid rgba(245,240,232,.18); border-radius:100px; padding:7px 16px; font-size:clamp(9px,2.2vw,11px); font-weight:500; letter-spacing:.18em; text-transform:uppercase; color:currentColor; animation:tapFade 1.8s ease-in-out infinite; }
-.tap-bubble.secondary { font-size:clamp(8px,2vw,10px); letter-spacing:.14em; background:rgba(245,240,232,.05); border-color:rgba(245,240,232,.1); animation-delay:.35s; }
-@keyframes tapFade { 0%,100%{opacity:.3;transform:translateY(2px)} 50%{opacity:.85;transform:translateY(0)} }
+/* inner */
+.half.top .inn{transform:rotate(180deg);display:flex;flex-direction:column;
+  align-items:center;gap:clamp(10px,2vh,14px)}
+.plbl{font-size:clamp(9px,2vw,11px);font-weight:500;letter-spacing:.25em;
+  text-transform:uppercase;opacity:.5}
+.td{font-family:'DM Mono',monospace;font-size:clamp(44px,16vmin,100px);
+  font-weight:300;letter-spacing:-.02em;line-height:1;transition:color .2s,transform .15s}
+.td.pulse{animation:tp .08s ease}
+@keyframes tp{0%{transform:scale(1)}50%{transform:scale(.96)}100%{transform:scale(1)}}
+.sinfo{font-family:'DM Mono',monospace;font-size:clamp(11px,2.5vw,13px);
+  letter-spacing:.05em;opacity:.55;display:flex;align-items:center;gap:8px;
+  min-height:18px;flex-wrap:wrap;justify-content:center}
+.bdot{width:6px;height:6px;border-radius:50%;background:currentColor;
+  opacity:.4;transition:opacity .2s,transform .2s;flex-shrink:0}
+.bdot.used{opacity:.12}
+.bdot.cur{opacity:1;transform:scale(1.4);animation:bp 1s ease-in-out infinite}
+@keyframes bp{0%,100%{transform:scale(1.4)}50%{transform:scale(1)}}
+.bprog{height:3px;background:rgba(245,240,232,.1);width:min(80%,200px);
+  border-radius:2px;overflow:hidden}
+.half.act .bprog{background:rgba(0,0,0,.1)}
+.bfill{height:100%;background:currentColor;transition:width .9s linear;border-radius:2px}
+.tapbox{display:flex;align-items:center;gap:8px;pointer-events:none;
+  flex-wrap:wrap;justify-content:center}
+.tapb{background:rgba(245,240,232,.1);border:1px solid rgba(245,240,232,.18);
+  border-radius:100px;padding:7px 16px;font-size:clamp(9px,2.2vw,11px);
+  font-weight:500;letter-spacing:.18em;text-transform:uppercase;
+  color:currentColor;animation:tf 1.8s ease-in-out infinite}
+.tapb.s2{font-size:clamp(8px,2vw,10px);background:rgba(245,240,232,.05);
+  border-color:rgba(245,240,232,.1);animation-delay:.35s}
+@keyframes tf{0%,100%{opacity:.3;transform:translateY(2px)}50%{opacity:.85;transform:translateY(0)}}
 
-/* ── controls bar ── */
-.controls-bar { height:var(--bar-h); background:var(--black); display:flex; align-items:center; justify-content:center; gap:clamp(8px,3vw,16px); z-index:20; flex-shrink:0; border-top:1px solid rgba(245,240,232,.06); border-bottom:1px solid rgba(245,240,232,.06); position:relative; padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right); }
-.logo { position:absolute; left:max(16px,env(safe-area-inset-left,16px)); font-family:'Playfair Display',serif; font-size:12px; font-weight:700; letter-spacing:.08em; color:rgba(245,240,232,.2); text-transform:uppercase; }
-@media (max-width:360px) { .logo { display:none; } }
-.move-counter { position:absolute; right:max(68px,calc(env(safe-area-inset-right,0px) + 68px)); font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.12em; color:rgba(245,240,232,.3); text-transform:uppercase; white-space:nowrap; }
-.move-counter span { color:rgba(245,240,232,.6); font-weight:500; }
-.ctrl-btn { background:rgba(245,240,232,.06); border:1px solid rgba(245,240,232,.1); color:var(--white); font-family:'DM Sans',sans-serif; font-size:clamp(11px,2.5vw,12px); font-weight:500; letter-spacing:.1em; text-transform:uppercase; min-height:44px; padding:0 clamp(14px,4vw,22px); border-radius:100px; cursor:pointer; transition:background .2s,border-color .2s,transform .15s; white-space:nowrap; -webkit-appearance:none; appearance:none; }
-.ctrl-btn:active { transform:scale(.94); background:rgba(245,240,232,.1); }
-@media (hover:hover) { .ctrl-btn:hover { background:rgba(245,240,232,.12); border-color:rgba(245,240,232,.2); transform:translateY(-1px); } }
-.ctrl-btn.danger { color:var(--danger); border-color:rgba(224,90,78,.3); }
-.ctrl-btn.danger:active { background:rgba(224,90,78,.12); }
-@media (hover:hover) { .ctrl-btn.danger:hover { background:rgba(224,90,78,.1); border-color:rgba(224,90,78,.5); } }
-.ctrl-btn.accent { color:var(--accent); border-color:rgba(200,169,110,.3); }
-.ctrl-btn.accent:active { background:rgba(200,169,110,.12); }
-@media (hover:hover) { .ctrl-btn.accent:hover { background:rgba(200,169,110,.1); border-color:rgba(200,169,110,.5); } }
-.settings-icon-btn { position:absolute; right:max(16px,env(safe-area-inset-right,16px)); background:none; border:1px solid rgba(245,240,232,.1); color:rgba(245,240,232,.5); width:44px; height:44px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; font-size:17px; -webkit-appearance:none; appearance:none; }
-.settings-icon-btn:active { color:var(--white); background:rgba(245,240,232,.1); }
-@media (hover:hover) { .settings-icon-btn:hover { color:var(--white); background:rgba(245,240,232,.06); } }
+/* controls bar */
+.cbar{height:var(--bh);background:var(--bg);display:flex;align-items:center;
+  justify-content:center;gap:clamp(8px,3vw,16px);z-index:20;flex-shrink:0;
+  border-top:1px solid rgba(245,240,232,.06);border-bottom:1px solid rgba(245,240,232,.06);
+  position:relative;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+.logo{position:absolute;left:max(16px,env(safe-area-inset-left,16px));
+  font-family:'Playfair Display',serif;font-size:12px;font-weight:700;
+  letter-spacing:.08em;color:rgba(245,240,232,.2);text-transform:uppercase}
+@media(max-width:360px){.logo{display:none}}
+.mvctr{position:absolute;right:max(68px,calc(env(safe-area-inset-right,0px) + 68px));
+  font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.12em;
+  color:rgba(245,240,232,.3);text-transform:uppercase;white-space:nowrap}
+.mvctr span{color:rgba(245,240,232,.6);font-weight:500}
+.cb{background:rgba(245,240,232,.06);border:1px solid rgba(245,240,232,.1);
+  color:var(--fg);font-family:'DM Sans',sans-serif;
+  font-size:clamp(11px,2.5vw,12px);font-weight:500;letter-spacing:.1em;
+  text-transform:uppercase;min-height:44px;padding:0 clamp(14px,4vw,22px);
+  border-radius:100px;cursor:pointer;
+  transition:background .2s,border-color .2s,transform .15s;
+  white-space:nowrap;-webkit-appearance:none;appearance:none}
+.cb:active{transform:scale(.94);background:rgba(245,240,232,.1)}
+.cb.dr{color:var(--red);border-color:rgba(224,90,78,.3)}
+.cb.dr:active{background:rgba(224,90,78,.12)}
+.cb.ac{color:var(--acc);border-color:rgba(200,169,110,.3)}
+.cb.ac:active{background:rgba(200,169,110,.12)}
+.sibtn{position:absolute;right:max(16px,env(safe-area-inset-right,16px));
+  background:none;border:1px solid rgba(245,240,232,.1);color:rgba(245,240,232,.5);
+  width:44px;height:44px;border-radius:50%;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .2s;
+  font-size:17px;-webkit-appearance:none;appearance:none}
+.sibtn:active{color:var(--fg);background:rgba(245,240,232,.1)}
 
-/* ── remote status bar (thin strip under controls bar) ── */
-.remote-bar { display:none; align-items:center; justify-content:center; gap:10px; background:#111; border-bottom:1px solid rgba(245,240,232,.06); padding:7px 16px; flex-shrink:0; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.08em; color:rgba(245,240,232,.4); }
-.remote-bar.active { display:flex; }
-.remote-badge { font-size:9px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; padding:3px 10px; border-radius:100px; }
-.remote-badge.host { background:rgba(200,169,110,.15); color:var(--accent); border:1px solid rgba(200,169,110,.3); }
-.remote-badge.guest { background:rgba(100,180,100,.12); color:#7ecb7e; border:1px solid rgba(100,180,100,.3); }
-.remote-code { font-size:13px; font-weight:500; color:var(--white); letter-spacing:.15em; }
-.remote-leave { background:none; border:none; color:rgba(245,240,232,.3); cursor:pointer; font-size:13px; padding:4px; line-height:1; }
-.remote-leave:active { color:var(--danger); }
-@media (hover:hover) { .remote-leave:hover { color:var(--danger); } }
+/* remote strip */
+.rbar{display:none;align-items:center;justify-content:center;gap:8px;
+  background:#111;border-bottom:1px solid rgba(245,240,232,.06);
+  padding:6px 16px;flex-shrink:0;font-family:'DM Mono',monospace;
+  font-size:11px;color:rgba(245,240,232,.4)}
+.rbar.on{display:flex}
+.rbadge{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+  padding:3px 9px;border-radius:100px;flex-shrink:0}
+.rbadge.h{background:rgba(200,169,110,.15);color:var(--acc);border:1px solid rgba(200,169,110,.3)}
+.rbadge.b{background:rgba(20,20,20,.9);color:rgba(245,240,232,.7);border:1px solid rgba(245,240,232,.2)}
+.rbadge.w{background:rgba(245,240,232,.12);color:var(--fg);border:1px solid rgba(245,240,232,.3)}
+.rbadge.v{background:rgba(100,100,200,.12);color:#aab;border:1px solid rgba(100,100,200,.25)}
+.rcode{font-size:13px;font-weight:500;color:var(--fg);letter-spacing:.15em;flex:1}
+.rname{font-size:10px;opacity:.45;max-width:80px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.rsb{background:none;border:1px solid rgba(245,240,232,.12);
+  color:rgba(245,240,232,.5);font-family:'DM Sans',sans-serif;
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  padding:4px 10px;border-radius:100px;cursor:pointer;
+  -webkit-appearance:none;appearance:none;transition:all .2s;white-space:nowrap}
+.rsb:active{background:rgba(245,240,232,.1);color:var(--fg)}
+.rsb.rd{border-color:rgba(224,90,78,.3);color:rgba(224,90,78,.6)}
+.rsb.rd:active{background:rgba(224,90,78,.12);color:var(--red)}
 
-@media (max-height:500px) and (orientation:landscape) {
-  :root { --bar-h:52px; }
-  .ctrl-btn { min-height:36px; font-size:10px; padding:0 12px; }
-  .settings-icon-btn { width:36px; height:36px; font-size:14px; }
-  .time-display { font-size:clamp(32px,12vmin,64px); }
-  .sub-info { font-size:10px; } .player-label { font-size:9px; }
-  .tap-bubble { padding:5px 10px; font-size:9px; }
-  .logo { display:none; } .move-counter { display:none; }
+@media(max-height:500px) and (orientation:landscape){
+  :root{--bh:52px}
+  .cb{min-height:36px;font-size:10px;padding:0 12px}
+  .sibtn{width:36px;height:36px;font-size:14px}
+  .td{font-size:clamp(32px,12vmin,64px)}
+  .sinfo{font-size:10px}.plbl{font-size:9px}
+  .tapb{padding:5px 10px;font-size:9px}
+  .logo,.mvctr{display:none}
 }
+.rip{position:absolute;border-radius:50%;background:rgba(255,255,255,.18);
+  transform:scale(0);animation:ra .5s ease-out forwards;pointer-events:none;z-index:5}
+@keyframes ra{to{transform:scale(4);opacity:0}}
 
-.ripple { position:absolute; border-radius:50%; background:rgba(255,255,255,.18); transform:scale(0); animation:rippleAnim .5s ease-out forwards; pointer-events:none; z-index:5; }
-@keyframes rippleAnim { to { transform:scale(4); opacity:0; } }
+/* expired */
+.expov{position:fixed;inset:0;background:var(--red);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:100;opacity:0;pointer-events:none;
+  transition:opacity .4s;gap:12px;padding:24px;
+  padding-bottom:max(24px,env(safe-area-inset-bottom))}
+.expov.on{opacity:1;pointer-events:all}
+.exptit{font-family:'Playfair Display',serif;font-size:clamp(28px,10vw,72px);
+  font-weight:900;color:white;letter-spacing:-.02em;text-align:center}
+.expsub{font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(255,255,255,.55);text-align:center}
+.expbtn{margin-top:16px;background:white;color:var(--red);border:none;
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+  letter-spacing:.1em;text-transform:uppercase;padding:16px 36px;
+  border-radius:100px;cursor:pointer;min-height:52px;transition:transform .2s;
+  -webkit-appearance:none;appearance:none}
+.expbtn:active{transform:scale(.97)}
 
-/* ── expired overlay ── */
-.expired-overlay { position:fixed; inset:0; background:var(--danger); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:100; opacity:0; pointer-events:none; transition:opacity .4s ease; gap:12px; padding:24px; padding-bottom:max(24px,env(safe-area-inset-bottom)); }
-.expired-overlay.show { opacity:1; pointer-events:all; }
-.expired-title { font-family:'Playfair Display',serif; font-size:clamp(28px,10vw,72px); font-weight:900; color:white; letter-spacing:-.02em; text-align:center; }
-.expired-sub { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.55); text-align:center; }
-.expired-reset { margin-top:16px; background:white; color:var(--danger); border:none; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; letter-spacing:.1em; text-transform:uppercase; padding:16px 36px; border-radius:100px; cursor:pointer; min-height:52px; transition:transform .2s; -webkit-appearance:none; appearance:none; }
-.expired-reset:active { transform:scale(.97); }
+/* toast */
+.toast{position:fixed;bottom:max(24px,env(safe-area-inset-bottom,24px));left:50%;
+  transform:translateX(-50%) translateY(80px);background:var(--fg);color:var(--bg);
+  font-size:13px;font-weight:500;padding:12px 24px;border-radius:100px;z-index:600;
+  transition:transform .4s var(--ease);white-space:nowrap;max-width:calc(100vw - 40px)}
+.toast.on{transform:translateX(-50%) translateY(0)}
 
-/* ── toast ── */
-.toast { position:fixed; bottom:max(24px,env(safe-area-inset-bottom,24px)); left:50%; transform:translateX(-50%) translateY(80px); background:var(--white); color:var(--black); font-size:13px; font-weight:500; padding:12px 24px; border-radius:100px; z-index:200; transition:transform .4s var(--transition); white-space:nowrap; max-width:calc(100vw - 40px); }
-.toast.show { transform:translateX(-50%) translateY(0); }
+/* settings page */
+#sp{background:var(--bg);overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.shdr{padding:max(48px,env(safe-area-inset-top,48px)) 20px 24px;
+  border-bottom:1px solid rgba(245,240,232,.08);position:sticky;top:0;
+  background:var(--bg);z-index:10;display:flex;align-items:flex-end;
+  justify-content:space-between;gap:12px}
+.stit{font-family:'Playfair Display',serif;font-size:clamp(22px,6vw,38px);
+  font-weight:900;letter-spacing:-.02em}
+.ssub{font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.3;margin-top:4px}
+.backbtn{background:none;border:1px solid rgba(245,240,232,.15);color:var(--fg);
+  font-family:'DM Sans',sans-serif;font-size:12px;letter-spacing:.1em;
+  text-transform:uppercase;padding:0 18px;border-radius:100px;cursor:pointer;
+  transition:background .2s;flex-shrink:0;min-height:44px;display:flex;
+  align-items:center;-webkit-appearance:none;appearance:none}
+.backbtn:active{background:rgba(245,240,232,.08)}
+.sbody{padding:24px 20px max(60px,env(safe-area-inset-bottom,60px));
+  max-width:600px;margin:0 auto}
+.sl{font-size:10px;letter-spacing:.25em;text-transform:uppercase;
+  opacity:.3;margin-bottom:12px;margin-top:32px;font-weight:500}
+.sl:first-child{margin-top:0}
 
-/* ════════ settings page ════════ */
-#settings-page { background:var(--black); overflow-y:auto; overflow-x:hidden; padding:0; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
-.settings-header { padding:max(48px,env(safe-area-inset-top,48px)) 20px 24px; border-bottom:1px solid rgba(245,240,232,.08); position:sticky; top:0; background:var(--black); z-index:10; display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
-.settings-title { font-family:'Playfair Display',serif; font-size:clamp(22px,6vw,38px); font-weight:900; letter-spacing:-.02em; }
-.settings-subtitle { font-size:10px; letter-spacing:.2em; text-transform:uppercase; opacity:.3; margin-top:4px; }
-.back-btn { background:none; border:1px solid rgba(245,240,232,.15); color:var(--white); font-family:'DM Sans',sans-serif; font-size:12px; letter-spacing:.1em; text-transform:uppercase; padding:0 18px; border-radius:100px; cursor:pointer; transition:background .2s; flex-shrink:0; min-height:44px; display:flex; align-items:center; -webkit-appearance:none; appearance:none; }
-.back-btn:active { background:rgba(245,240,232,.08); }
-.settings-body { padding:24px 20px max(60px,env(safe-area-inset-bottom,60px)); max-width:600px; margin:0 auto; }
-.section-label { font-size:10px; letter-spacing:.25em; text-transform:uppercase; opacity:.3; margin-bottom:12px; margin-top:32px; font-weight:500; }
-.section-label:first-child { margin-top:0; }
+/* layout picker */
+.laytog{display:flex;gap:10px}
+.layopt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;background:rgba(245,240,232,.04);border:1px solid rgba(245,240,232,.1);
+  border-radius:14px;padding:16px 12px;cursor:pointer;min-height:76px;
+  color:var(--fg);font-family:'DM Sans',sans-serif;font-size:11px;
+  letter-spacing:.1em;text-transform:uppercase;opacity:.45;transition:all .2s;
+  -webkit-appearance:none;appearance:none}
+.layopt:active{background:rgba(245,240,232,.1)}
+.layopt.sel{background:rgba(200,169,110,.1);border-color:var(--acc);color:var(--acc);opacity:1}
+.layico{font-size:20px;line-height:1}
 
-/* ── layout picker ── */
-.layout-toggle { display:flex; gap:10px; }
-.layout-opt { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; background:rgba(245,240,232,.04); border:1px solid rgba(245,240,232,.1); border-radius:14px; padding:16px 12px; cursor:pointer; min-height:76px; color:var(--white); font-family:'DM Sans',sans-serif; font-size:11px; letter-spacing:.1em; text-transform:uppercase; opacity:.45; transition:all .2s; -webkit-appearance:none; appearance:none; }
-.layout-opt:active { background:rgba(245,240,232,.1); }
-.layout-opt.selected { background:rgba(200,169,110,.1); border-color:var(--accent); color:var(--accent); opacity:1; }
-@media (hover:hover) { .layout-opt:hover { background:rgba(245,240,232,.08); opacity:.8; } }
-.layout-icon { font-size:20px; line-height:1; }
+/* remote collapsible */
+.rtogbtn{width:100%;display:flex;align-items:center;justify-content:space-between;
+  background:rgba(245,240,232,.04);border:1px solid rgba(245,240,232,.1);
+  border-radius:14px;padding:14px 18px;cursor:pointer;transition:all .2s;
+  min-height:52px;color:var(--fg);font-family:'DM Sans',sans-serif;
+  -webkit-appearance:none;appearance:none;text-align:left}
+.rtogbtn:active{background:rgba(245,240,232,.08)}
+.rtogbtn.open{border-color:rgba(100,180,200,.4);background:rgba(100,180,200,.06);
+  border-radius:14px 14px 0 0}
+.rtleft{display:flex;align-items:center;gap:10px}
+.rtlbl{font-size:13px;font-weight:500}
+.rtsub{font-size:11px;opacity:.35;font-family:'DM Mono',monospace;margin-top:2px}
+.rtarr{font-size:11px;opacity:.4;transition:transform .3s var(--ease);flex-shrink:0}
+.rtogbtn.open .rtarr{transform:rotate(180deg)}
+.rcoll{max-height:0;overflow:hidden;transition:max-height .4s cubic-bezier(.4,0,.2,1)}
+.rcoll.open{max-height:900px}
+.rin{background:rgba(100,180,200,.04);border:1px solid rgba(100,180,200,.14);
+  border-top:none;border-radius:0 0 14px 14px;padding:16px;
+  display:flex;flex-direction:column;gap:12px}
 
-/* ── remote play section ── */
-.remote-section { margin-top:0; }
-.remote-panels { display:flex; gap:10px; }
-.remote-panel { flex:1; background:rgba(245,240,232,.04); border:1px solid rgba(245,240,232,.1); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:10px; }
-.remote-panel-title { font-size:11px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; opacity:.5; }
-.remote-panel-desc  { font-size:11px; font-family:'DM Mono',monospace; opacity:.3; line-height:1.5; }
-.remote-action-btn { background:rgba(245,240,232,.08); border:1px solid rgba(245,240,232,.14); color:var(--white); font-family:'DM Sans',sans-serif; font-size:12px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; padding:0 14px; border-radius:100px; cursor:pointer; min-height:40px; transition:all .2s; -webkit-appearance:none; appearance:none; white-space:nowrap; }
-.remote-action-btn:active { background:rgba(245,240,232,.14); }
-@media (hover:hover) { .remote-action-btn:hover { background:rgba(245,240,232,.12); border-color:rgba(245,240,232,.25); } }
-.remote-action-btn.accent { background:rgba(200,169,110,.1); border-color:rgba(200,169,110,.3); color:var(--accent); }
-.remote-action-btn.accent:active { background:rgba(200,169,110,.2); }
-.remote-join-row { display:flex; gap:8px; }
-.remote-code-input { flex:1; background:rgba(245,240,232,.07); border:1px solid rgba(245,240,232,.12); color:var(--white); font-family:'DM Mono',monospace; font-size:max(16px,1.1em); font-weight:500; letter-spacing:.2em; text-align:center; text-transform:uppercase; padding:0 12px; border-radius:12px; outline:none; min-height:44px; transition:border-color .2s; -webkit-appearance:none; appearance:none; }
-.remote-code-input::placeholder { opacity:.25; letter-spacing:.1em; text-transform:none; }
-.remote-code-input:focus { border-color:var(--accent); background:rgba(200,169,110,.06); }
-.remote-status-row { display:flex; align-items:center; gap:8px; padding:10px 14px; background:rgba(200,169,110,.07); border:1px solid rgba(200,169,110,.2); border-radius:12px; }
-.remote-status-code { font-family:'DM Mono',monospace; font-size:20px; font-weight:500; letter-spacing:.2em; color:var(--accent); flex:1; }
-.remote-copy-btn { background:none; border:1px solid rgba(200,169,110,.3); color:var(--accent); font-family:'DM Sans',sans-serif; font-size:11px; letter-spacing:.08em; text-transform:uppercase; padding:6px 12px; border-radius:100px; cursor:pointer; transition:all .2s; -webkit-appearance:none; appearance:none; }
-.remote-copy-btn:active { background:rgba(200,169,110,.15); }
-.attendee-list { margin-top:10px; display:flex; flex-direction:column; gap:8px; }
-.attendee-row { display:flex; align-items:center; gap:10px; background:rgba(245,240,232,.04); border:1px solid rgba(245,240,232,.1); border-radius:12px; padding:10px; }
-.attendee-meta { flex:1; min-width:0; }
-.attendee-name { font-size:12px; font-weight:500; letter-spacing:.04em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.attendee-id { font-size:10px; opacity:.35; font-family:'DM Mono',monospace; margin-top:2px; }
-.role-pill { font-size:9px; letter-spacing:.12em; text-transform:uppercase; border:1px solid rgba(245,240,232,.15); border-radius:100px; padding:4px 9px; opacity:.8; }
-.role-select { background:rgba(245,240,232,.07); border:1px solid rgba(245,240,232,.12); color:var(--white); border-radius:10px; min-height:34px; padding:0 10px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+/* remote panels */
+.rpanels{display:flex;gap:10px}
+.rpanel{flex:1;background:rgba(245,240,232,.04);border:1px solid rgba(245,240,232,.1);
+  border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.rptit{font-size:11px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;opacity:.5}
+.rpdesc{font-size:11px;font-family:'DM Mono',monospace;opacity:.3;line-height:1.5}
+.rpbtn{background:rgba(200,169,110,.1);border:1px solid rgba(200,169,110,.3);
+  color:var(--acc);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;
+  letter-spacing:.08em;text-transform:uppercase;padding:0 14px;border-radius:100px;
+  cursor:pointer;min-height:40px;transition:all .2s;
+  -webkit-appearance:none;appearance:none;white-space:nowrap}
+.rpbtn:active{background:rgba(200,169,110,.2)}
+.rpbtn.gy{background:rgba(245,240,232,.06);border-color:rgba(245,240,232,.12);color:var(--fg)}
+.rpbtn.gy:active{background:rgba(245,240,232,.14)}
+.rpbtn.rd{background:rgba(224,90,78,.08);border-color:rgba(224,90,78,.25);color:var(--red)}
+.rpbtn.rd:active{background:rgba(224,90,78,.18)}
+.rcodein{width:100%;background:rgba(245,240,232,.07);
+  border:1px solid rgba(245,240,232,.12);color:var(--fg);
+  font-family:'DM Mono',monospace;font-size:max(16px,1em);font-weight:500;
+  letter-spacing:.2em;text-align:center;text-transform:uppercase;padding:0 12px;
+  border-radius:12px;outline:none;min-height:44px;transition:border-color .2s;
+  -webkit-appearance:none;appearance:none}
+.rcodein:focus{border-color:var(--acc)}
 
-/* ── dropdown ── */
-.custom-select-wrap { position:relative; }
-.custom-select-trigger { display:flex; align-items:center; justify-content:space-between; background:rgba(245,240,232,.05); border:1px solid rgba(245,240,232,.12); border-radius:14px; padding:16px 18px; cursor:pointer; transition:all .2s; gap:12px; min-height:60px; }
-.custom-select-trigger:active { background:rgba(245,240,232,.08); }
-@media (hover:hover) { .custom-select-trigger:hover { background:rgba(245,240,232,.08); border-color:rgba(245,240,232,.2); } }
-.custom-select-trigger.open { border-color:var(--accent); background:rgba(200,169,110,.07); border-radius:14px 14px 0 0; border-bottom-color:transparent; }
-.cst-left { display:flex; flex-direction:column; gap:3px; flex:1; min-width:0; }
-.cst-value { font-size:clamp(13px,3.5vw,15px); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.cst-desc  { font-size:clamp(10px,2.5vw,11px); opacity:.4; font-family:'DM Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.cst-arrow { width:28px; height:28px; border-radius:50%; border:1px solid rgba(245,240,232,.12); display:flex; align-items:center; justify-content:center; font-size:11px; opacity:.5; flex-shrink:0; transition:transform .3s var(--transition),opacity .2s; }
-.custom-select-trigger.open .cst-arrow { transform:rotate(180deg); opacity:.8; }
-.custom-select-panel { position:absolute; left:0; right:0; top:100%; z-index:50; background:#131313; border:1px solid rgba(200,169,110,.3); border-top:none; border-radius:0 0 14px 14px; overflow:hidden; max-height:0; transition:max-height .38s cubic-bezier(.4,0,.2,1),opacity .25s ease; opacity:0; pointer-events:none; }
-.custom-select-panel.open { max-height:440px; opacity:1; pointer-events:all; }
-.csp-option { display:flex; align-items:center; gap:14px; padding:14px 18px; cursor:pointer; transition:background .15s; border-bottom:1px solid rgba(245,240,232,.04); min-height:60px; }
-.csp-option:last-child { border-bottom:none; }
-.csp-option:active { background:rgba(245,240,232,.06); }
-@media (hover:hover) { .csp-option:hover { background:rgba(245,240,232,.04); } }
-.csp-option.selected { background:rgba(200,169,110,.07); }
-.csp-icon { width:38px; height:38px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:17px; background:rgba(245,240,232,.05); border:1px solid rgba(245,240,232,.07); }
-.csp-option.selected .csp-icon { background:rgba(200,169,110,.14); border-color:rgba(200,169,110,.28); }
-.csp-text { flex:1; min-width:0; }
-.csp-name { font-size:clamp(13px,3.5vw,14px); font-weight:500; }
-.csp-hint { font-size:clamp(10px,2.5vw,11px); opacity:.37; font-family:'DM Mono',monospace; margin-top:2px; }
-.csp-option.selected .csp-name { color:var(--accent); }
-.csp-check { font-size:13px; color:var(--accent); opacity:0; transition:opacity .2s; flex-shrink:0; }
-.csp-option.selected .csp-check { opacity:1; }
+/* room active */
+.rcoderow{display:flex;align-items:center;gap:8px;background:rgba(200,169,110,.07);
+  border:1px solid rgba(200,169,110,.2);border-radius:12px;padding:10px 14px}
+.rcodebig{font-family:'DM Mono',monospace;font-size:22px;font-weight:500;
+  letter-spacing:.22em;color:var(--acc);flex:1}
+.rpill{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  padding:4px 10px;border-radius:100px;flex-shrink:0}
+.rpill.h{background:rgba(200,169,110,.2);color:var(--acc);border:1px solid rgba(200,169,110,.4)}
+.rpill.b{background:rgba(20,20,20,.9);color:rgba(245,240,232,.8);border:1px solid rgba(245,240,232,.25)}
+.rpill.w{background:rgba(245,240,232,.15);color:var(--fg);border:1px solid rgba(245,240,232,.3)}
+.rpill.v{background:rgba(120,140,200,.12);color:#aac;border:1px solid rgba(120,140,200,.25)}
+.rbtns{display:flex;gap:8px;flex-wrap:wrap}
+.rinfo{font-size:11px;font-family:'DM Mono',monospace;opacity:.32;line-height:1.6}
+.mlbl{font-size:10px;letter-spacing:.15em;text-transform:uppercase;opacity:.3;margin-bottom:8px}
+.mrow{display:flex;align-items:center;gap:8px;background:rgba(245,240,232,.04);
+  border:1px solid rgba(245,240,232,.07);border-radius:10px;padding:10px 12px;margin-bottom:5px}
+.mname{flex:1;font-size:12px;font-family:'DM Mono',monospace;opacity:.7;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.monl{font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--grn);flex-shrink:0}
+.maway{font-size:9px;letter-spacing:.1em;text-transform:uppercase;opacity:.3;flex-shrink:0}
+.rpick{display:flex;gap:4px}
+.rolebtn{background:rgba(245,240,232,.06);border:1px solid rgba(245,240,232,.1);
+  color:rgba(245,240,232,.45);font-family:'DM Sans',sans-serif;font-size:9px;
+  font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;
+  border-radius:100px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:all .2s}
+.rolebtn.sb{background:rgba(20,20,20,.9);border-color:rgba(245,240,232,.3);color:var(--fg)}
+.rolebtn.sw{background:rgba(245,240,232,.15);border-color:rgba(245,240,232,.4);color:var(--fg)}
+.rolebtn.sv{background:rgba(120,140,200,.15);border-color:rgba(120,140,200,.35);color:#aac}
 
-/* ── time inputs ── */
-.time-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 0; border-bottom:1px solid rgba(245,240,232,.06); flex-wrap:nowrap; }
-.time-row-lhs { flex:1; min-width:0; }
-.time-row-label { font-size:clamp(13px,3.5vw,14px); font-weight:400; opacity:.85; }
-.time-row-sublabel { font-size:clamp(10px,2.5vw,11px); opacity:.32; margin-top:2px; font-family:'DM Mono',monospace; line-height:1.4; }
-.time-input-group { display:flex; align-items:center; gap:6px; flex-shrink:0; }
-.time-input,.count-input { background:rgba(245,240,232,.07); border:1px solid rgba(245,240,232,.12); color:var(--white); font-family:'DM Mono',monospace; font-size:max(16px,1em); font-weight:300; width:56px; min-height:48px; text-align:center; padding:0 4px; border-radius:12px; outline:none; transition:border-color .2s,background .2s; -moz-appearance:textfield; }
-.time-input::-webkit-inner-spin-button,.time-input::-webkit-outer-spin-button,.count-input::-webkit-inner-spin-button,.count-input::-webkit-outer-spin-button { -webkit-appearance:none; }
-.time-input:focus,.count-input:focus { border-color:var(--accent); background:rgba(200,169,110,.08); }
-.time-colon { opacity:.28; font-family:'DM Mono',monospace; font-size:18px; flex-shrink:0; }
-.row-unit { margin-left:6px; font-size:11px; opacity:.3; white-space:nowrap; flex-shrink:0; }
+/* dropdown */
+.cswrap{position:relative}
+.cstrig{display:flex;align-items:center;justify-content:space-between;
+  background:rgba(245,240,232,.05);border:1px solid rgba(245,240,232,.12);
+  border-radius:14px;padding:16px 18px;cursor:pointer;transition:all .2s;
+  gap:12px;min-height:60px}
+.cstrig:active{background:rgba(245,240,232,.08)}
+.cstrig.open{border-color:var(--acc);background:rgba(200,169,110,.07);
+  border-radius:14px 14px 0 0;border-bottom-color:transparent}
+.csl{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.csv{font-size:clamp(13px,3.5vw,15px);font-weight:500;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.csd{font-size:clamp(10px,2.5vw,11px);opacity:.4;font-family:'DM Mono',monospace;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.csar{width:28px;height:28px;border-radius:50%;border:1px solid rgba(245,240,232,.12);
+  display:flex;align-items:center;justify-content:center;font-size:11px;opacity:.5;
+  flex-shrink:0;transition:transform .3s var(--ease),opacity .2s}
+.cstrig.open .csar{transform:rotate(180deg);opacity:.8}
+.cspan{position:absolute;left:0;right:0;top:100%;z-index:50;background:#131313;
+  border:1px solid rgba(200,169,110,.3);border-top:none;border-radius:0 0 14px 14px;
+  overflow:hidden;max-height:0;transition:max-height .38s cubic-bezier(.4,0,.2,1),opacity .25s;
+  opacity:0;pointer-events:none}
+.cspan.open{max-height:440px;opacity:1;pointer-events:all}
+.csopt{display:flex;align-items:center;gap:14px;padding:14px 18px;cursor:pointer;
+  transition:background .15s;border-bottom:1px solid rgba(245,240,232,.04);min-height:60px}
+.csopt:last-child{border-bottom:none}
+.csopt:active{background:rgba(245,240,232,.06)}
+.csopt.sel{background:rgba(200,169,110,.07)}
+.csico{width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;
+  align-items:center;justify-content:center;font-size:17px;
+  background:rgba(245,240,232,.05);border:1px solid rgba(245,240,232,.07)}
+.csopt.sel .csico{background:rgba(200,169,110,.14);border-color:rgba(200,169,110,.28)}
+.cstxt{flex:1;min-width:0}
+.csnm{font-size:clamp(13px,3.5vw,14px);font-weight:500}
+.csht{font-size:clamp(10px,2.5vw,11px);opacity:.37;font-family:'DM Mono',monospace;margin-top:2px}
+.csopt.sel .csnm{color:var(--acc)}
+.csck{font-size:13px;color:var(--acc);opacity:0;transition:opacity .2s;flex-shrink:0}
+.csopt.sel .csck{opacity:1}
 
-/* ── rules ── */
-.rules-box { background:rgba(200,169,110,.05); border:1px solid rgba(200,169,110,.13); border-radius:14px; padding:16px 18px; margin-top:12px; }
-.rules-box p { font-size:clamp(12px,3vw,13px); line-height:1.75; opacity:.6; }
-.rules-box strong { color:var(--accent); font-weight:500; }
+/* time inputs */
+.trow{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 0;border-bottom:1px solid rgba(245,240,232,.06);flex-wrap:nowrap}
+.trlhs{flex:1;min-width:0}
+.trlbl{font-size:clamp(13px,3.5vw,14px);font-weight:400;opacity:.85}
+.trsub{font-size:clamp(10px,2.5vw,11px);opacity:.32;margin-top:2px;
+  font-family:'DM Mono',monospace;line-height:1.4}
+.tig{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.tin,.cin{background:rgba(245,240,232,.07);border:1px solid rgba(245,240,232,.12);
+  color:var(--fg);font-family:'DM Mono',monospace;font-size:max(16px,1em);
+  font-weight:300;width:56px;min-height:48px;text-align:center;padding:0 4px;
+  border-radius:12px;outline:none;transition:border-color .2s,background .2s;
+  -moz-appearance:textfield;-webkit-appearance:none;appearance:none}
+.tin::-webkit-inner-spin-button,.tin::-webkit-outer-spin-button,
+.cin::-webkit-inner-spin-button,.cin::-webkit-outer-spin-button{-webkit-appearance:none}
+.tin:focus,.cin:focus{border-color:var(--acc);background:rgba(200,169,110,.08)}
+.tcol{opacity:.28;font-family:'DM Mono',monospace;font-size:18px;flex-shrink:0}
+.tunit{margin-left:6px;font-size:11px;opacity:.3;white-space:nowrap;flex-shrink:0}
 
-/* ── presets ── */
-.presets-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:16px; }
-@media (min-width:480px) { .presets-grid { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; } }
-.preset-card { background:rgba(245,240,232,.04); border:1px solid rgba(245,240,232,.08); border-radius:14px; padding:14px; cursor:pointer; transition:background .2s,border-color .2s; position:relative; overflow:hidden; min-height:76px; }
-.preset-card:active { background:rgba(245,240,232,.08); }
-@media (hover:hover) { .preset-card:hover { background:rgba(245,240,232,.08); border-color:rgba(245,240,232,.15); } }
-.preset-card.selected { background:rgba(200,169,110,.1); border-color:var(--accent); }
-.preset-card .preset-name { font-size:clamp(12px,3vw,13px); font-weight:500; margin-bottom:3px; }
-.preset-card .preset-system { font-size:9px; opacity:.38; letter-spacing:.1em; text-transform:uppercase; margin-bottom:4px; }
-.preset-card .preset-desc { font-family:'DM Mono',monospace; font-size:10px; opacity:.38; line-height:1.5; }
-.preset-card .delete-preset { position:absolute; top:6px; right:6px; background:rgba(224,90,78,.08); border:none; color:rgba(224,90,78,.5); cursor:pointer; font-size:11px; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; transition:background .2s,color .2s; opacity:0; pointer-events:none; }
-@media (hover:none) { .preset-card .delete-preset { opacity:1; pointer-events:auto; } }
-@media (hover:hover) { .preset-card:hover .delete-preset { opacity:1; pointer-events:auto; } }
-.preset-card .delete-preset:active { background:rgba(224,90,78,.2); color:var(--danger); }
-.add-preset-btn { background:rgba(245,240,232,.03); border:1px dashed rgba(245,240,232,.13); border-radius:14px; padding:16px; cursor:pointer; transition:all .2s; color:rgba(245,240,232,.35); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px; font-family:'DM Sans',sans-serif; width:100%; min-height:52px; -webkit-appearance:none; appearance:none; }
-.add-preset-btn:active { color:var(--white); background:rgba(245,240,232,.06); }
-@media (hover:hover) { .add-preset-btn:hover { color:var(--white); border-color:rgba(245,240,232,.28); background:rgba(245,240,232,.05); } }
+/* rules */
+.rulebox{background:rgba(200,169,110,.05);border:1px solid rgba(200,169,110,.13);
+  border-radius:14px;padding:16px 18px;margin-top:12px}
+.rulebox p{font-size:clamp(12px,3vw,13px);line-height:1.75;opacity:.6}
+.rulebox strong{color:var(--acc);font-weight:500}
 
-/* ── play bar ── */
-.save-load-bar { display:flex; gap:10px; margin-top:28px; padding-top:24px; border-top:1px solid rgba(245,240,232,.08); }
-.play-btn { flex:1; background:var(--white); color:var(--black); border:none; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; padding:0 26px; border-radius:100px; cursor:pointer; transition:all .2s; min-height:52px; -webkit-appearance:none; appearance:none; }
-.play-btn:active { transform:scale(.97); background:#ddd8d0; }
-@media (hover:hover) { .play-btn:hover { background:#e8e3db; transform:translateY(-1px); box-shadow:0 6px 24px rgba(245,240,232,.2); } }
+/* presets */
+.pgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
+@media(min-width:480px){.pgrid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}}
+.pcard{background:rgba(245,240,232,.04);border:1px solid rgba(245,240,232,.08);
+  border-radius:14px;padding:14px;cursor:pointer;transition:background .2s,border-color .2s;
+  position:relative;overflow:hidden;min-height:76px}
+.pcard:active{background:rgba(245,240,232,.08)}
+.pcard.sel{background:rgba(200,169,110,.1);border-color:var(--acc)}
+.pnm{font-size:clamp(12px,3vw,13px);font-weight:500;margin-bottom:3px}
+.psy{font-size:9px;opacity:.38;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.pde{font-family:'DM Mono',monospace;font-size:10px;opacity:.38;line-height:1.5}
+.pdel{position:absolute;top:6px;right:6px;background:rgba(224,90,78,.08);border:none;
+  color:rgba(224,90,78,.5);cursor:pointer;font-size:11px;width:24px;height:24px;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  transition:background .2s,color .2s;opacity:0;pointer-events:none}
+@media(hover:none){.pdel{opacity:1;pointer-events:auto}}
+@media(hover:hover){.pcard:hover .pdel{opacity:1;pointer-events:auto}}
+.pdel:active{background:rgba(224,90,78,.2);color:var(--red)}
+.addpbtn{background:rgba(245,240,232,.03);border:1px dashed rgba(245,240,232,.13);
+  border-radius:14px;padding:16px;cursor:pointer;transition:all .2s;
+  color:rgba(245,240,232,.35);font-size:13px;display:flex;align-items:center;
+  justify-content:center;gap:8px;font-family:'DM Sans',sans-serif;
+  width:100%;min-height:52px;-webkit-appearance:none;appearance:none}
+.addpbtn:active{color:var(--fg);background:rgba(245,240,232,.06)}
 
-/* ── app modal ── */
-.modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.78); z-index:300; display:flex; align-items:center; justify-content:center; padding:24px; opacity:0; pointer-events:none; transition:opacity .25s ease; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
-.modal-backdrop.show { opacity:1; pointer-events:all; }
-.modal-box { background:#1c1c1c; border:1px solid rgba(245,240,232,.12); border-radius:22px; padding:28px 24px 22px; width:100%; max-width:360px; transform:scale(.93) translateY(10px); transition:transform .3s var(--transition); }
-.modal-backdrop.show .modal-box { transform:scale(1) translateY(0); }
-.modal-title { font-family:'Playfair Display',serif; font-size:21px; font-weight:700; margin-bottom:5px; }
-.modal-sub { font-size:12px; opacity:.38; font-family:'DM Mono',monospace; margin-bottom:20px; line-height:1.5; }
-.modal-input { width:100%; background:rgba(245,240,232,.07); border:1px solid rgba(245,240,232,.15); color:var(--white); font-family:'DM Sans',sans-serif; font-size:max(16px,1em); padding:14px 16px; border-radius:12px; outline:none; transition:border-color .2s,background .2s; }
-.modal-input:focus { border-color:var(--accent); background:rgba(200,169,110,.06); }
-.modal-actions { display:flex; gap:10px; margin-top:16px; }
-.modal-cancel { flex:1; background:rgba(245,240,232,.06); border:1px solid rgba(245,240,232,.1); color:var(--white); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; padding:0 16px; border-radius:100px; cursor:pointer; min-height:48px; transition:background .2s; -webkit-appearance:none; appearance:none; }
-.modal-cancel:active { background:rgba(245,240,232,.12); }
-.modal-confirm { flex:2; background:var(--accent); color:var(--black); border:none; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; padding:0 16px; border-radius:100px; cursor:pointer; min-height:48px; transition:all .2s; -webkit-appearance:none; appearance:none; }
-.modal-confirm:active { transform:scale(.97); background:#bf9f60; }
+/* play bar */
+.plbar{display:flex;gap:10px;margin-top:28px;padding-top:24px;
+  border-top:1px solid rgba(245,240,232,.08)}
+.playbtn{flex:1;background:var(--fg);color:var(--bg);border:none;
+  font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;padding:0 26px;
+  border-radius:100px;cursor:pointer;transition:all .2s;min-height:52px;
+  -webkit-appearance:none;appearance:none}
+.playbtn:active{transform:scale(.97);background:#ddd8d0}
+
+/* modal */
+.mback{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:400;
+  display:flex;align-items:center;justify-content:center;padding:24px;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.mback.on{opacity:1;pointer-events:all}
+.mbox{background:#1c1c1c;border:1px solid rgba(245,240,232,.12);border-radius:22px;
+  padding:28px 24px 22px;width:100%;max-width:380px;
+  transform:scale(.93) translateY(10px);transition:transform .3s var(--ease)}
+.mback.on .mbox{transform:scale(1) translateY(0)}
+.mtit{font-family:'Playfair Display',serif;font-size:21px;font-weight:700;margin-bottom:5px}
+.msub{font-size:12px;opacity:.38;font-family:'DM Mono',monospace;margin-bottom:20px;line-height:1.5}
+.minp{width:100%;background:rgba(245,240,232,.07);border:1px solid rgba(245,240,232,.15);
+  color:var(--fg);font-family:'DM Sans',sans-serif;font-size:max(16px,1em);
+  padding:14px 16px;border-radius:12px;outline:none;
+  transition:border-color .2s,background .2s;-webkit-appearance:none;appearance:none}
+.minp:focus{border-color:var(--acc);background:rgba(200,169,110,.06)}
+.macts{display:flex;gap:10px;margin-top:16px}
+.mcan{flex:1;background:rgba(245,240,232,.06);border:1px solid rgba(245,240,232,.1);
+  color:var(--fg);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+  letter-spacing:.08em;text-transform:uppercase;padding:0 16px;border-radius:100px;
+  cursor:pointer;min-height:48px;transition:background .2s;
+  -webkit-appearance:none;appearance:none}
+.mcan:active{background:rgba(245,240,232,.12)}
+.mok{flex:2;background:var(--acc);color:var(--bg);border:none;
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;padding:0 16px;
+  border-radius:100px;cursor:pointer;min-height:48px;transition:all .2s;
+  -webkit-appearance:none;appearance:none}
+.mok:active{transform:scale(.97)}
+.mok.danger{background:var(--red);color:white}
 </style>
 </head>
 <body>
 
-<!-- ═══ CLOCK PAGE ═══════════════════════════════════════ -->
-<div id="clock-page" class="page">
-
-  <div class="clock-half top inactive" id="p1-half" tabindex="0">
-    <div class="inner">
-      <div class="player-label">Black</div>
-      <div class="time-display" id="p1-time">3:00</div>
-      <div class="sub-info" id="p1-sub">
-        <div class="byo-dot" id="p1-d0"></div><div class="byo-dot" id="p1-d1"></div>
-        <div class="byo-dot" id="p1-d2"></div><div class="byo-dot" id="p1-d3"></div>
-        <div class="byo-dot" id="p1-d4"></div>
-        <span id="p1-sub-text" style="margin-left:4px;"></span>
+<!-- CLOCK PAGE -->
+<div id="cp" class="page">
+  <div class="half top off" id="h1" tabindex="0">
+    <div class="inn">
+      <div class="plbl">Black</div>
+      <div class="td" id="t1">3:00</div>
+      <div class="sinfo">
+        <div class="bdot" id="d1-0"></div><div class="bdot" id="d1-1"></div>
+        <div class="bdot" id="d1-2"></div><div class="bdot" id="d1-3"></div>
+        <div class="bdot" id="d1-4"></div>
+        <span id="s1" style="margin-left:4px"></span>
       </div>
-      <div class="byo-progress" id="p1-progress" style="display:none;">
-        <div class="byo-progress-fill" id="p1-fill"></div>
-      </div>
-      <div class="tap-to-start" id="tap-hint-1">
-        <div class="tap-bubble">Tap to Begin</div>
-        <div class="tap-bubble secondary" id="tap-system-1">Byo-Yomi</div>
+      <div class="bprog" id="pr1" style="display:none"><div class="bfill" id="pf1"></div></div>
+      <div class="tapbox" id="th1">
+        <div class="tapb">Tap to Begin</div>
+        <div class="tapb s2" id="tl1">Byo-Yomi</div>
       </div>
     </div>
   </div>
 
-  <div class="controls-bar">
+  <div class="cbar">
     <span class="logo">Go Clock</span>
-    <button class="ctrl-btn danger" onclick="resetGame()">Reset</button>
-    <button class="ctrl-btn accent" id="btn-pause" onclick="togglePause()">Pause</button>
-    <div class="move-counter" id="move-counter" style="display:none;">Move <span id="move-num">0</span></div>
-    <button class="settings-icon-btn" onclick="showSettings()" title="Settings">⚙</button>
+    <button class="cb dr" id="btnR">Reset</button>
+    <button class="cb ac" id="btnP">Pause</button>
+    <div class="mvctr" id="mvc" style="display:none">Move <span id="mvn">0</span></div>
+    <button class="sibtn" id="btnS">⚙</button>
   </div>
 
-  <!-- Remote session status strip -->
-  <div class="remote-bar" id="remote-bar">
-    <span class="remote-badge host" id="remote-badge">Hosting</span>
-    <span class="remote-code" id="remote-code-display">——</span>
-    <button class="remote-leave" onclick="leaveRoom()" title="Leave session">✕</button>
+  <div class="rbar" id="rbar">
+    <span class="rbadge h" id="rbg">Host</span>
+    <span class="rcode" id="rcd">——</span>
+    <span class="rname" id="rnm"></span>
+    <button class="rsb" id="rsoBtn">Step Out</button>
+    <button class="rsb rd" id="rlvBtn">Leave</button>
   </div>
 
-  <div class="clock-half bottom inactive" id="p2-half" tabindex="0">
-    <div class="player-label">White</div>
-    <div class="time-display" id="p2-time">3:00</div>
-    <div class="sub-info" id="p2-sub">
-      <div class="byo-dot" id="p2-d0"></div><div class="byo-dot" id="p2-d1"></div>
-      <div class="byo-dot" id="p2-d2"></div><div class="byo-dot" id="p2-d3"></div>
-      <div class="byo-dot" id="p2-d4"></div>
-      <span id="p2-sub-text" style="margin-left:4px;"></span>
+  <div class="half bot off" id="h2" tabindex="0">
+    <div class="plbl">White</div>
+    <div class="td" id="t2">3:00</div>
+    <div class="sinfo">
+      <div class="bdot" id="d2-0"></div><div class="bdot" id="d2-1"></div>
+      <div class="bdot" id="d2-2"></div><div class="bdot" id="d2-3"></div>
+      <div class="bdot" id="d2-4"></div>
+      <span id="s2" style="margin-left:4px"></span>
     </div>
-    <div class="byo-progress" id="p2-progress" style="display:none;">
-      <div class="byo-progress-fill" id="p2-fill"></div>
-    </div>
-    <div class="tap-to-start" id="tap-hint-2">
-      <div class="tap-bubble">Tap to Begin</div>
-      <div class="tap-bubble secondary" id="tap-system-2">Byo-Yomi</div>
+    <div class="bprog" id="pr2" style="display:none"><div class="bfill" id="pf2"></div></div>
+    <div class="tapbox" id="th2">
+      <div class="tapb">Tap to Begin</div>
+      <div class="tapb s2" id="tl2">Byo-Yomi</div>
     </div>
   </div>
 </div>
 
-<!-- ═══ SETTINGS PAGE ═══════════════════════════════════ -->
-<div id="settings-page" class="page hidden">
-  <div class="settings-header">
+<!-- SETTINGS PAGE -->
+<div id="sp" class="page hidden">
+  <div class="shdr">
     <div>
-      <div class="settings-title">Settings</div>
-      <div class="settings-subtitle" id="sh-subtitle">Japanese Byo-Yomi</div>
+      <div class="stit">Settings</div>
+      <div class="ssub" id="ssub">Japanese Byo-Yomi</div>
     </div>
-    <button class="back-btn" onclick="showClock()">← Back</button>
+    <button class="backbtn" id="btnBk">← Back</button>
   </div>
-  <div class="settings-body">
+  <div class="sbody">
+    <div class="sl">Saved Presets</div>
+    <div class="pgrid" id="pgrid"></div>
+    <button class="addpbtn" id="btnAP">+ Save Current as Preset</button>
 
-    <div class="section-label">Saved Presets</div>
-    <div class="presets-grid" id="presets-grid"></div>
-    <button class="add-preset-btn" onclick="saveCurrentAsPreset()">+ Save Current as Preset</button>
-
-    <div class="section-label">Layout</div>
-    <div class="layout-toggle">
-      <button class="layout-opt selected" id="layout-stacked" onclick="setLayout('stacked')">
-        <div class="layout-icon">⬛<br>⬜</div>Stacked
-      </button>
-      <button class="layout-opt" id="layout-side" onclick="setLayout('side')">
-        <div class="layout-icon">⬛ ⬜</div>Side by Side
-      </button>
+    <div class="sl">Layout</div>
+    <div class="laytog">
+      <button class="layopt sel" id="lStk"><div class="layico">⬛<br>⬜</div>Stacked</button>
+      <button class="layopt" id="lSbs"><div class="layico">⬛ ⬜</div>Side by Side</button>
     </div>
 
-    <div class="section-label">Remote Play</div>
-    <div id="remote-section-ui"></div>
-
-    <div class="section-label">Time System</div>
-    <div class="custom-select-wrap" id="ts-wrap">
-      <div class="custom-select-trigger" id="ts-trigger" onclick="toggleDropdown()">
-        <div class="cst-left">
-          <div class="cst-value" id="ts-value">Japanese Byo-Yomi</div>
-          <div class="cst-desc" id="ts-desc">Main time + timed periods per move</div>
-        </div>
-        <div class="cst-arrow">▾</div>
+    <div class="sl">Remote Play</div>
+    <button class="rtogbtn" id="rtogBtn">
+      <div class="rtleft">
+        <span style="font-size:16px">📡</span>
+        <div><div class="rtlbl">Play Across Devices</div><div class="rtsub" id="rtsub">Host or join a live room</div></div>
       </div>
-      <div class="custom-select-panel" id="ts-panel"></div>
+      <span class="rtarr">▾</span>
+    </button>
+    <div class="rcoll" id="rcoll"><div class="rin" id="rin"></div></div>
+
+    <div class="sl">Time System</div>
+    <div class="cswrap" id="cswrap">
+      <div class="cstrig" id="cstrig">
+        <div class="csl">
+          <div class="csv" id="csv">Japanese Byo-Yomi</div>
+          <div class="csd" id="csd">Main time + timed periods per move</div>
+        </div>
+        <div class="csar">▾</div>
+      </div>
+      <div class="cspan" id="cspan"></div>
     </div>
 
-    <div id="time-fields"></div>
-
-    <div class="section-label">Rules</div>
-    <div class="rules-box"><p id="rules-text"></p></div>
-
-    <div class="save-load-bar">
-      <button class="play-btn" onclick="applyAndPlay()">▶ Play</button>
-    </div>
+    <div id="tfields"></div>
+    <div class="sl">Rules</div>
+    <div class="rulebox"><p id="rtxt"></p></div>
+    <div class="plbar"><button class="playbtn" id="btnPl">▶ Play</button></div>
   </div>
 </div>
 
-<!-- ═══ EXPIRED OVERLAY ═══════════════════════════════════ -->
-<div class="expired-overlay" id="expired-overlay">
-  <div class="expired-sub">Time has run out</div>
-  <div class="expired-title" id="expired-who">Black loses on time</div>
-  <button class="expired-reset" onclick="resetGame()">Reset & Play Again</button>
+<!-- EXPIRED -->
+<div class="expov" id="expov">
+  <div class="expsub">Time has run out</div>
+  <div class="exptit" id="expwho">Black loses on time</div>
+  <button class="expbtn" id="btnER">Reset &amp; Play Again</button>
 </div>
 
-<!-- ═══ APP MODAL ════════════════════════════════════════ -->
-<div class="modal-backdrop" id="modal-backdrop" onclick="handleModalBackdropClick(event)">
-  <div class="modal-box">
-    <div class="modal-title" id="modal-title">Save Preset</div>
-    <div class="modal-sub" id="modal-sub">Give this configuration a name</div>
-    <input class="modal-input" type="text" id="modal-input" placeholder="e.g. Tournament 30m" autocomplete="off" maxlength="40">
-    <div class="modal-actions">
-      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
-      <button class="modal-confirm" id="modal-confirm">Save</button>
+<!-- MODAL -->
+<div class="mback" id="mback">
+  <div class="mbox">
+    <div class="mtit" id="mtit"></div>
+    <div class="msub" id="msub"></div>
+    <input class="minp" id="minp" type="text" autocomplete="off" maxlength="40">
+    <div class="macts">
+      <button class="mcan" id="mcan">Cancel</button>
+      <button class="mok" id="mok">OK</button>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script type="module">
-import { initializeApp }    from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getFirestore, doc, setDoc, onSnapshot, deleteDoc, getDoc, updateDoc }
-  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-
-// ════════════════════════════════════════════════════════
-// FIREBASE SETUP
-// ════════════════════════════════════════════════════════
-const firebaseConfig = {
-  apiKey: "AIzaSyD7rNFmIFEZn0rK5SA9KjuZsaR5czF06XY",
-  authDomain: "go-clock-7d527.firebaseapp.com",
-  projectId: "go-clock-7d527",
-  storageBucket: "go-clock-7d527.firebasestorage.app",
-  messagingSenderId: "198198206473",
-  appId: "1:198198206473:web:19da2bfc650009742e18d8",
-  measurementId: "G-KLEDDQ1900"
-};
-const fbApp = initializeApp(firebaseConfig);
-const db    = getFirestore(fbApp);
-
-// ════════════════════════════════════════════════════════
+<script>
+// ─────────────────────────────────────────────
 // TIME SYSTEMS
-// ════════════════════════════════════════════════════════
-const TIME_SYSTEMS = {
-  japanese: {
-    id:'japanese', name:'Japanese Byo-Yomi', icon:'🎌',
-    shortDesc:'Main time + timed periods per move',
-    defaults:{ mainTime:180, byoTime:30, byoCount:5 },
-    fields:[
-      { id:'mainTime', label:'Main Time',      sub:'Total thinking time before byo-yomi', type:'mmss' },
-      { id:'byoTime',  label:'Period Duration', sub:'Time limit per byo-yomi period',      type:'mmss' },
-      { id:'byoCount', label:'Periods',         sub:'Number of byo-yomi periods per player', type:'count', unit:'periods' },
-    ],
-    rules:`<strong>Japanese Byo-Yomi</strong> — Each player has fixed main thinking time. Once exhausted, they enter byo-yomi: a series of timed periods. <strong>Each move must be completed within one period.</strong> Finishing a move in time resets the period clock. Running out loses one period. Lose all periods and you lose the game.`,
-    tapLabel:'Byo-Yomi',
-  },
-  sudden: {
-    id:'sudden', name:'Sudden Death', icon:'☠️',
-    shortDesc:'One fixed clock — no overtime',
-    defaults:{ mainTime:300 },
-    fields:[{ id:'mainTime', label:'Total Time', sub:'All the time each player has — no overtime', type:'mmss' }],
-    rules:`<strong>Sudden Death</strong> — Each player has a single block of time. <strong>When it runs out, they lose immediately.</strong> No overtime, no byo-yomi, no second chances.`,
-    tapLabel:'Sudden Death',
-  },
-  canadian: {
-    id:'canadian', name:'Canadian Byo-Yomi', icon:'🍁',
-    shortDesc:'Main time + moves-per-period overtime',
-    defaults:{ mainTime:180, byoTime:60, movesPerPeriod:10 },
-    fields:[
-      { id:'mainTime',       label:'Main Time',       sub:'Thinking time before byo-yomi begins', type:'mmss' },
-      { id:'byoTime',        label:'Period Duration',  sub:'Time to complete the required moves',  type:'mmss' },
-      { id:'movesPerPeriod', label:'Moves per Period', sub:'Moves that must be made each period',  type:'count', unit:'moves' },
-    ],
-    rules:`<strong>Canadian Byo-Yomi</strong> — After main time, players must complete a <strong>set number of moves within a single period</strong>. The period resets only after all required moves are made in time. Running out means loss.`,
-    tapLabel:'Canadian',
-  },
-  fischer: {
-    id:'fischer', name:'Fischer Increment', icon:'⏱',
-    shortDesc:'Seconds added to clock after every move',
-    defaults:{ mainTime:180, increment:10 },
-    fields:[
-      { id:'mainTime',  label:'Starting Time', sub:'Clock time each player starts with', type:'mmss' },
-      { id:'increment', label:'Increment',     sub:'Seconds added to your clock after every move', type:'count', unit:'sec / move' },
-    ],
-    rules:`<strong>Fischer Increment</strong> — Each player starts with a set amount of time. <strong>After every move, a fixed number of seconds is added to their clock.</strong> Running out at any point means loss.`,
-    tapLabel:'Fischer',
-  },
-  simple: {
-    id:'simple', name:'Simple (Per Move)', icon:'⏳',
-    shortDesc:'Fixed time limit for each individual move',
-    defaults:{ moveTime:30 },
-    fields:[{ id:'moveTime', label:'Time per Move', sub:'Each player must move within this limit — resets every turn', type:'mmss' }],
-    rules:`<strong>Simple / Per Move</strong> — Each player has a fixed clock for <strong>every single move</strong>. The clock resets completely at the start of each turn. Fail to move in time and you lose.`,
-    tapLabel:'Per Move',
-  },
+// ─────────────────────────────────────────────
+var SYS = {
+  japanese:{id:'japanese',name:'Japanese Byo-Yomi',icon:'🎌',sd:'Main time + timed periods per move',
+    def:{mainTime:180,byoTime:30,byoCount:5},
+    fields:[{id:'mainTime',lbl:'Main Time',sub:'Total thinking time before byo-yomi',t:'mm'},{id:'byoTime',lbl:'Period Duration',sub:'Time limit per byo-yomi period',t:'mm'},{id:'byoCount',lbl:'Periods',sub:'Number of byo-yomi periods per player',t:'ct',unit:'periods'}],
+    rules:'<strong>Japanese Byo-Yomi</strong> — Main thinking time, then timed periods. <strong>Each move must finish within one period.</strong> Run out of periods and you lose.',tl:'Byo-Yomi'},
+  sudden:{id:'sudden',name:'Sudden Death',icon:'☠️',sd:'One fixed clock — no overtime',
+    def:{mainTime:300},fields:[{id:'mainTime',lbl:'Total Time',sub:'All time each player has',t:'mm'}],
+    rules:'<strong>Sudden Death</strong> — One block of time. <strong>Run out and you lose immediately.</strong>',tl:'Sudden Death'},
+  canadian:{id:'canadian',name:'Canadian Byo-Yomi',icon:'🍁',sd:'Main time + moves-per-period overtime',
+    def:{mainTime:180,byoTime:60,movesPerPeriod:10},
+    fields:[{id:'mainTime',lbl:'Main Time',sub:'Before byo-yomi',t:'mm'},{id:'byoTime',lbl:'Period Duration',sub:'Time for required moves',t:'mm'},{id:'movesPerPeriod',lbl:'Moves per Period',sub:'Moves required each period',t:'ct',unit:'moves'}],
+    rules:'<strong>Canadian Byo-Yomi</strong> — Complete a set number of moves within each period.',tl:'Canadian'},
+  fischer:{id:'fischer',name:'Fischer Increment',icon:'⏱',sd:'Seconds added after every move',
+    def:{mainTime:180,increment:10},
+    fields:[{id:'mainTime',lbl:'Starting Time',sub:'Starting clock',t:'mm'},{id:'increment',lbl:'Increment',sub:'Seconds added after every move',t:'ct',unit:'sec/move'}],
+    rules:'<strong>Fischer Increment</strong> — Time added after each move.',tl:'Fischer'},
+  simple:{id:'simple',name:'Simple (Per Move)',icon:'⏳',sd:'Fixed time per move, resets each turn',
+    def:{moveTime:30},fields:[{id:'moveTime',lbl:'Time per Move',sub:'Resets every turn',t:'mm'}],
+    rules:'<strong>Simple</strong> — Fixed clock reset every turn.',tl:'Per Move'}
 };
-const SYSTEM_ORDER = ['japanese','sudden','canadian','fischer','simple'];
-const DEFAULT_SETTINGS = { system:'japanese', mainTime:180, byoTime:30, byoCount:5, movesPerPeriod:10, increment:10, moveTime:30 };
+var SORD=['japanese','sudden','canadian','fischer','simple'];
+var DEFS={system:'japanese',mainTime:180,byoTime:30,byoCount:5,movesPerPeriod:10,increment:10,moveTime:30};
 
-// ════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────
 // STORAGE
-// ════════════════════════════════════════════════════════
-function loadSettings()  { try { const s=JSON.parse(localStorage.getItem('goclock_s4')); if(s&&s.system) return {...DEFAULT_SETTINGS,...s}; } catch(e){} return {...DEFAULT_SETTINGS}; }
-function saveSettings(s) { localStorage.setItem('goclock_s4',JSON.stringify(s)); settings=s; }
-function loadPresets()   { try { const p=JSON.parse(localStorage.getItem('goclock_p4')); if(Array.isArray(p)&&p.length) return p; } catch(e){} return []; }
-function savePresets(p)  { localStorage.setItem('goclock_p4',JSON.stringify(p)); presets=p; }
-function loadLayout()    { return localStorage.getItem('goclock_layout')||'stacked'; }
-function saveLayout(l)   { localStorage.setItem('goclock_layout',l); }
+// ─────────────────────────────────────────────
+function ls(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
+function lss(k,v){localStorage.setItem(k,JSON.stringify(v))}
+function loadSettings(){var s=ls('gc_s');return(s&&s.system)?Object.assign({},DEFS,s):Object.assign({},DEFS)}
+function saveSettings(s){lss('gc_s',s);cfg=s}
+function loadPresets(){var p=ls('gc_p');return(Array.isArray(p)&&p.length)?p:[]}
+function savePresets(p){lss('gc_p',p);presets=p}
+function loadLayout(){return localStorage.getItem('gc_l')||'stacked'}
+function saveLayout(l){localStorage.setItem('gc_l',l)}
+function getMyId(){var id=localStorage.getItem('gc_uid');if(!id){id='u'+Math.random().toString(36).slice(2,10);localStorage.setItem('gc_uid',id)}return id}
 
-let settings = loadSettings();
-let presets  = loadPresets();
+var cfg=loadSettings(), presets=loadPresets();
 
-// ════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────
 // GAME STATE
-// ════════════════════════════════════════════════════════
-let state = { phase:'idle', active:null, p1:null, p2:null, interval:null, moves:0 };
+// ─────────────────────────────────────────────
+var gs={phase:'idle',active:null,p1:null,p2:null,iv:null,moves:0};
 
-function makePlayer() {
-  const s=settings, sys=s.system;
-  if (sys==='japanese') return { main:s.mainTime, byoLeft:s.byoTime, byoCount:s.byoCount, byoTotal:s.byoTime, inByo:s.mainTime===0 };
-  if (sys==='sudden')   return { main:s.mainTime };
-  if (sys==='canadian') return { main:s.mainTime, byoLeft:s.byoTime, byoTotal:s.byoTime, movesInPeriod:0, movesRequired:s.movesPerPeriod, inByo:s.mainTime===0 };
-  if (sys==='fischer')  return { main:s.mainTime, inc:s.increment };
-  if (sys==='simple')   return { main:s.moveTime, moveTotal:s.moveTime };
+function mkP(){
+  var s=cfg,sys=s.system;
+  if(sys==='japanese')return{main:s.mainTime,byoLeft:s.byoTime,byoCount:s.byoCount,byoTotal:s.byoTime,inByo:s.mainTime===0};
+  if(sys==='sudden')return{main:s.mainTime};
+  if(sys==='canadian')return{main:s.mainTime,byoLeft:s.byoTime,byoTotal:s.byoTime,movInPer:0,movReq:s.movesPerPeriod,inByo:s.mainTime===0};
+  if(sys==='fischer')return{main:s.mainTime,inc:s.increment};
+  if(sys==='simple')return{main:s.moveTime,movTot:s.moveTime};
 }
-function initPlayers() { state.p1=makePlayer(); state.p2=makePlayer(); state.moves=0; updateMoveCounter(); }
+function initP(){gs.p1=mkP();gs.p2=mkP();gs.moves=0;updMVC()}
 
-// ════════════════════════════════════════════════════════
-// MOVE COUNTER
-// ════════════════════════════════════════════════════════
-function updateMoveCounter() {
-  const el=document.getElementById('move-counter'), num=document.getElementById('move-num');
-  if (state.phase==='idle'||state.phase==='expired') { el.style.display='none'; return; }
-  el.style.display=''; num.textContent=state.moves;
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function fmt(secs){var neg=secs<0;secs=Math.abs(Math.floor(secs));var m=Math.floor(secs/60),s=secs%60;return(neg?'-':'')+(m>0?m+':'+String(s).padStart(2,'0'):String(s))}
+function gel(id){return document.getElementById(id)}
+
+function updMVC(){
+  var el=gel('mvc');
+  if(gs.phase==='idle'||gs.phase==='expired'){el.style.display='none';return}
+  el.style.display='';gel('mvn').textContent=gs.moves;
 }
 
-// ════════════════════════════════════════════════════════
-// DISPLAY
-// ════════════════════════════════════════════════════════
-function fmt(secs) {
-  const neg=secs<0; secs=Math.abs(Math.floor(secs));
-  const m=Math.floor(secs/60), s=secs%60;
-  return (neg?'-':'')+(m>0 ? m+':'+String(s).padStart(2,'0') : String(s));
-}
-function updateDisplay(pid) {
-  const p=pid===1?state.p1:state.p2, sys=settings.system;
-  const tEl=document.getElementById(`p${pid}-time`);
-  const sTxt=document.getElementById(`p${pid}-sub-text`);
-  const pEl=document.getElementById(`p${pid}-progress`);
-  const fEl=document.getElementById(`p${pid}-fill`);
-  for(let i=0;i<5;i++) document.getElementById(`p${pid}-d${i}`).style.display='none';
+function updDisplay(pid){
+  var p=pid===1?gs.p1:gs.p2, sys=cfg.system;
+  var tEl=gel('t'+pid),sEl=gel('s'+pid),pEl=gel('pr'+pid),fEl=gel('pf'+pid);
+  for(var i=0;i<5;i++)gel('d'+pid+'-'+i).style.display='none';
   pEl.style.display='none';
-  if (sys==='japanese') {
-    if (!p.inByo) { tEl.textContent=fmt(p.main); sTxt.textContent=`× ${p.byoCount} byo-yomi`; renderDots(pid,p.byoCount,settings.byoCount,false); }
-    else { tEl.textContent=fmt(p.byoLeft); sTxt.textContent=p.byoCount>1?`${p.byoCount} periods left`:'Last period!'; renderDots(pid,p.byoCount,settings.byoCount,true); pEl.style.display='block'; fEl.style.width=Math.max(0,(p.byoLeft/p.byoTotal)*100)+'%'; }
-  } else if (sys==='sudden') {
-    tEl.textContent=fmt(p.main); sTxt.textContent='Sudden death';
-  } else if (sys==='canadian') {
-    if (!p.inByo) { tEl.textContent=fmt(p.main); sTxt.textContent=`${settings.movesPerPeriod} moves / period`; }
-    else { tEl.textContent=fmt(p.byoLeft); const mv=p.movesRequired-p.movesInPeriod; sTxt.textContent=`${mv} move${mv!==1?'s':''} left in period`; pEl.style.display='block'; fEl.style.width=Math.max(0,(p.byoLeft/p.byoTotal)*100)+'%'; }
-  } else if (sys==='fischer') {
-    tEl.textContent=fmt(p.main); sTxt.textContent=`+${p.inc}s / move`;
-  } else if (sys==='simple') {
-    tEl.textContent=fmt(p.main); sTxt.textContent='per move'; pEl.style.display='block'; fEl.style.width=Math.max(0,(p.main/p.moveTotal)*100)+'%';
-  }
+  if(sys==='japanese'){
+    if(!p.inByo){tEl.textContent=fmt(p.main);sEl.textContent='× '+p.byoCount+' byo-yomi';dots(pid,p.byoCount,cfg.byoCount,false)}
+    else{tEl.textContent=fmt(p.byoLeft);sEl.textContent=p.byoCount>1?p.byoCount+' periods left':'Last period!';dots(pid,p.byoCount,cfg.byoCount,true);pEl.style.display='block';fEl.style.width=Math.max(0,(p.byoLeft/p.byoTotal)*100)+'%'}
+  }else if(sys==='sudden'){tEl.textContent=fmt(p.main);sEl.textContent='Sudden death'}
+  else if(sys==='canadian'){
+    if(!p.inByo){tEl.textContent=fmt(p.main);sEl.textContent=cfg.movesPerPeriod+' moves / period'}
+    else{tEl.textContent=fmt(p.byoLeft);var mv=p.movReq-p.movInPer;sEl.textContent=mv+' move'+(mv!==1?'s':'')+' left';pEl.style.display='block';fEl.style.width=Math.max(0,(p.byoLeft/p.byoTotal)*100)+'%'}
+  }else if(sys==='fischer'){tEl.textContent=fmt(p.main);sEl.textContent='+'+p.inc+'s / move'}
+  else if(sys==='simple'){tEl.textContent=fmt(p.main);sEl.textContent='per move';pEl.style.display='block';fEl.style.width=Math.max(0,(p.main/p.movTot)*100)+'%'}
 }
-function renderDots(pid,remaining,total,inByo) {
-  const show=Math.min(total,5);
-  for(let i=0;i<5;i++) {
-    const d=document.getElementById(`p${pid}-d${i}`);
-    if(i>=show){d.style.display='none';continue;}
-    d.style.display=''; d.className='byo-dot';
-    if(remaining<=i) d.classList.add('used');
-    else if(inByo&&i===remaining-1) d.classList.add('current');
-  }
-}
-function updateHalfClasses() {
-  const p1h=document.getElementById('p1-half'), p2h=document.getElementById('p2-half');
-  const t1=document.getElementById('tap-hint-1'), t2=document.getElementById('tap-hint-2');
-  p1h.classList.remove('active','inactive'); p2h.classList.remove('active','inactive');
-  if (state.phase==='idle') { p1h.classList.add('inactive'); p2h.classList.add('inactive'); t1.style.display='flex'; t2.style.display='flex'; }
-  else { t1.style.display='none'; t2.style.display='none';
-    if(state.active===1){p1h.classList.add('active');p2h.classList.add('inactive');}
-    else if(state.active===2){p2h.classList.add('active');p1h.classList.add('inactive');}
-    else{p1h.classList.add('inactive');p2h.classList.add('inactive');}
+
+function dots(pid,rem,tot,inByo){
+  var show=Math.min(tot,5);
+  for(var i=0;i<5;i++){
+    var d=gel('d'+pid+'-'+i);
+    if(i>=show){d.style.display='none';continue}
+    d.style.display='';d.className='bdot';
+    if(rem<=i)d.classList.add('used');
+    else if(inByo&&i===rem-1)d.classList.add('cur');
   }
 }
 
-// ════════════════════════════════════════════════════════
+function updHalves(){
+  var h1=gel('h1'),h2=gel('h2'),th1=gel('th1'),th2=gel('th2');
+  h1.className='half top'; h2.className='half bot';
+  if(gs.phase==='idle'){h1.classList.add('off');h2.classList.add('off');th1.style.display='flex';th2.style.display='flex'}
+  else{
+    th1.style.display='none';th2.style.display='none';
+    if(gs.active===1){h1.classList.add('act');h2.classList.add('off')}
+    else if(gs.active===2){h2.classList.add('act');h1.classList.add('off')}
+    else{h1.classList.add('off');h2.classList.add('off')}
+    if(RS&&!RS.so){
+      var r=RS.mr;
+      if(r==='black')h2.classList.add('lk');
+      else if(r==='white')h1.classList.add('lk');
+      else if(r==='viewer'){h1.classList.add('lk');h2.classList.add('lk')}
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
 // LAYOUT
-// ════════════════════════════════════════════════════════
-let currentLayout = loadLayout();
-function applyLayout(l) {
-  currentLayout=l;
-  document.getElementById('clock-page').classList.toggle('side-by-side',l==='side');
-  document.getElementById('layout-stacked').classList.toggle('selected',l==='stacked');
-  document.getElementById('layout-side').classList.toggle('selected',l==='side');
+// ─────────────────────────────────────────────
+var curLayout=loadLayout();
+function applyLayout(l){
+  curLayout=l;
+  gel('cp').classList.toggle('sbs',l==='side');
+  gel('lStk').classList.toggle('sel',l==='stacked');
+  gel('lSbs').classList.toggle('sel',l==='side');
 }
-function setLayout(l) { applyLayout(l); saveLayout(l); }
+function setLayout(l){applyLayout(l);saveLayout(l)}
 
-// ════════════════════════════════════════════════════════
-// TICK
-// ════════════════════════════════════════════════════════
-function byoBeepThreshold() { return settings.byoTime<=10?5:10; }
-function tick() {
-  const pid=state.active, p=pid===1?state.p1:state.p2, sys=settings.system;
-  if (sys==='japanese') {
-    if (!p.inByo) {
-      p.main-=1;
-      if (p.main<=0) { p.main=0; p.inByo=true; setDanger(pid,false); }
-      else if (p.main<=10) { playBeep(1-p.main/10); setDanger(pid,true); pulseTime(pid); }
-      else setDanger(pid,false);
-    }
-    if (p.inByo) {
-      p.byoLeft-=1;
-      if (p.byoLeft<=0) { p.byoCount-=1; if(p.byoCount<=0){setDanger(pid,false);expire();return;} p.byoLeft=p.byoTotal; setDanger(pid,false); }
-      const th=byoBeepThreshold();
-      if(p.byoLeft>0&&p.byoLeft<=th){playBeep(1-p.byoLeft/th);setDanger(pid,true);pulseTime(pid);}
-      else if(p.byoLeft>th) setDanger(pid,false);
-    }
-  } else if (sys==='sudden') {
-    p.main-=1;
-    if(p.main<=0){setDanger(pid,false);expire();return;}
-    if(p.main<=10){playBeep(1-p.main/10);setDanger(pid,true);pulseTime(pid);}
-    else setDanger(pid,false);
-  } else if (sys==='canadian') {
-    if(!p.inByo){
-      p.main-=1;
-      if(p.main<=0){p.main=0;p.inByo=true;p.byoLeft=p.byoTotal;p.movesInPeriod=0;setDanger(pid,false);}
-      else if(p.main<=10){playBeep(1-p.main/10);setDanger(pid,true);pulseTime(pid);}
-      else setDanger(pid,false);
-    } else {
-      p.byoLeft-=1;
-      if(p.byoLeft<=0){setDanger(pid,false);expire();return;}
-      const th=byoBeepThreshold();
-      if(p.byoLeft<=th){playBeep(1-p.byoLeft/th);setDanger(pid,true);pulseTime(pid);}
-      else setDanger(pid,false);
-    }
-  } else if (sys==='fischer') {
-    p.main-=1;
-    if(p.main<=0){setDanger(pid,false);expire();return;}
-    if(p.main<=10){playBeep(1-p.main/10);setDanger(pid,true);pulseTime(pid);}
-    else setDanger(pid,false);
-  } else if (sys==='simple') {
-    p.main-=1;
-    if(p.main<=0){setDanger(pid,false);expire();return;}
-    const th=byoBeepThreshold();
-    if(p.main<=th){playBeep(1-p.main/th);setDanger(pid,true);pulseTime(pid);}
-    else setDanger(pid,false);
-  }
-  updateDisplay(pid);
-  pushRemoteState();
-}
-function pulseTime(pid) { const el=document.getElementById(`p${pid}-time`); el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
-function expire() {
-  clearInterval(state.interval); state.phase='expired';
-  updateDisplay(state.active); updateHalfClasses(); updateMoveCounter();
-  showExpired(state.active); pushRemoteState();
-}
-
-// ════════════════════════════════════════════════════════
-// TURN SWITCHING
-// ════════════════════════════════════════════════════════
-function switchTurn(fromPid) {
-  if(!canControlHalf(fromPid)) {
-    if(remoteSession && !applyingRemoteTap) showToast('You cannot use this clock');
-    return;
-  }
-  if(remoteSession && !remoteSession.isHost && !applyingRemoteTap){
-    sendRemoteAction('tap',{pid:fromPid});
-    return;
-  }
-  if(state.phase==='expired') return;
-  if(state.phase==='idle'){
-    initPlayers(); updateDisplay(1); updateDisplay(2);
-    setDanger(1,false); setDanger(2,false);
-    playPop(); createRipple(fromPid);
-    startPlayer(fromPid===1?2:1); return;
-  }
-  if(state.phase==='paused') return;
-  if(state.active!==fromPid) return;
-  const p=fromPid===1?state.p1:state.p2, sys=settings.system;
-  if(sys==='japanese'&&p.inByo) p.byoLeft=p.byoTotal;
-  if(sys==='canadian'&&p.inByo){p.movesInPeriod+=1;if(p.movesInPeriod>=p.movesRequired){p.movesInPeriod=0;p.byoLeft=p.byoTotal;}}
-  if(sys==='fischer') p.main+=p.inc;
-  if(sys==='simple') p.main=p.moveTotal;
-  state.moves+=1;
-  setDanger(fromPid,false);
-  playPop(); createRipple(fromPid);
-  startPlayer(fromPid===1?2:1);
-  updateMoveCounter();
-  pushRemoteState();
-}
-function startPlayer(pid) {
-  if(settings.system==='simple'){const np=pid===1?state.p1:state.p2;np.main=np.moveTotal;}
-  state.active=pid; state.phase='running';
-  updateHalfClasses(); clearInterval(state.interval);
-  state.interval=setInterval(tick,1000);
-}
-function togglePause() {
-  if(remoteSession && !remoteSession.isHost){ showToast('Only host can pause'); return; }
-  if(state.phase==='idle'||state.phase==='expired') return;
-  if(state.phase==='running'){
-    state.phase='paused'; clearInterval(state.interval);
-    document.getElementById('btn-pause').textContent='Resume';
-  } else {
-    state.phase='running'; state.interval=setInterval(tick,1000);
-    document.getElementById('btn-pause').textContent='Pause';
-  }
-  updateHalfClasses(); pushRemoteState();
-}
-function resetGame() {
-  if(remoteSession && !remoteSession.isHost){ showToast('Only host can reset'); return; }
-  clearInterval(state.interval); state.phase='idle'; state.active=null; initPlayers();
-  document.getElementById('btn-pause').textContent='Pause';
-  document.getElementById('expired-overlay').classList.remove('show');
-  setDanger(1,false); setDanger(2,false);
-  updateDisplay(1); updateDisplay(2); updateHalfClasses(); updateTapBubbles(); updateMoveCounter();
-  pushRemoteState();
-}
-function showExpired(pid) {
-  document.getElementById('expired-who').textContent=(pid===1?'Black':'White')+' loses on time';
-  document.getElementById('expired-overlay').classList.add('show');
-}
-
-// ════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────
 // AUDIO
-// ════════════════════════════════════════════════════════
-let audioCtx;
-function getAudio(){ if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
-function playPop() {
-  try {
-    const ctx=getAudio(), now=ctx.currentTime;
-    [[800,200,.3,.08,'square'],[1200,600,.15,.05,'sine']].forEach(([f1,f2,g,d,t])=>{
-      const o=ctx.createOscillator(), gn=ctx.createGain();
-      o.type=t; o.frequency.setValueAtTime(f1,now); o.frequency.exponentialRampToValueAtTime(f2,now+d);
-      gn.gain.setValueAtTime(g,now); gn.gain.exponentialRampToValueAtTime(.001,now+d);
-      o.connect(gn); gn.connect(ctx.destination); o.start(now); o.stop(now+d);
+// ─────────────────────────────────────────────
+var actx;
+function getActx(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();return actx}
+function playPop(){
+  try{var c=getActx(),n=c.currentTime;
+    [[800,200,.3,.08,'square'],[1200,600,.15,.05,'sine']].forEach(function(a){
+      var o=c.createOscillator(),g=c.createGain();o.type=a[4];
+      o.frequency.setValueAtTime(a[0],n);o.frequency.exponentialRampToValueAtTime(a[1],n+a[3]);
+      g.gain.setValueAtTime(a[2],n);g.gain.exponentialRampToValueAtTime(.001,n+a[3]);
+      o.connect(g);g.connect(c.destination);o.start(n);o.stop(n+a[3]);
     });
-  } catch(e){}
+  }catch(e){}
 }
-function playBeep(urgency) {
-  try {
-    const ctx=getAudio(), now=ctx.currentTime;
-    const freq=520+urgency*400, dur=.18-urgency*.09, atk=.012, rel=dur*.55;
-    const o=ctx.createOscillator(), gn=ctx.createGain();
-    o.type='sine'; o.frequency.setValueAtTime(freq,now);
-    gn.gain.setValueAtTime(0,now);
-    gn.gain.linearRampToValueAtTime(.28,now+atk);
-    gn.gain.setValueAtTime(.28,now+dur-rel);
-    gn.gain.exponentialRampToValueAtTime(.0001,now+dur);
-    o.connect(gn); gn.connect(ctx.destination); o.start(now); o.stop(now+dur+.02);
-  } catch(e){}
+function playBeep(u){
+  try{var c=getActx(),n=c.currentTime,f=520+u*400,d=.18-u*.09,atk=.012,rel=d*.55;
+    var o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.setValueAtTime(f,n);
+    g.gain.setValueAtTime(0,n);g.gain.linearRampToValueAtTime(.28,n+atk);
+    g.gain.setValueAtTime(.28,n+d-rel);g.gain.exponentialRampToValueAtTime(.0001,n+d);
+    o.connect(g);g.connect(c.destination);o.start(n);o.stop(n+d+.02);
+  }catch(e){}
 }
-function setDanger(pid,on) { document.getElementById(`p${pid}-half`).classList.toggle('danger-pulse',on); }
+function setDanger(pid,on){gel('h'+pid).classList.toggle('dp',on)}
 
-// ════════════════════════════════════════════════════════
-// RIPPLE
-// ════════════════════════════════════════════════════════
-function createRipple(pid) {
-  const half=document.getElementById(`p${pid}-half`);
-  const r=document.createElement('div'); r.className='ripple';
-  r.style.cssText='width:120px;height:120px;left:50%;top:50%;margin-left:-60px;margin-top:-60px;';
-  half.appendChild(r); setTimeout(()=>r.remove(),600);
+// ─────────────────────────────────────────────
+// TICK
+// ─────────────────────────────────────────────
+function byoTh(){return cfg.byoTime<=10?5:10}
+function tick(){
+  var pid=gs.active,p=pid===1?gs.p1:gs.p2,sys=cfg.system;
+  if(sys==='japanese'){
+    if(!p.inByo){p.main-=1;if(p.main<=0){p.main=0;p.inByo=true;setDanger(pid,false)}else if(p.main<=10){playBeep(1-p.main/10);setDanger(pid,true);pulseT(pid)}else setDanger(pid,false)}
+    if(p.inByo){p.byoLeft-=1;if(p.byoLeft<=0){p.byoCount-=1;if(p.byoCount<=0){setDanger(pid,false);expire();return}p.byoLeft=p.byoTotal;setDanger(pid,false)}var th=byoTh();if(p.byoLeft>0&&p.byoLeft<=th){playBeep(1-p.byoLeft/th);setDanger(pid,true);pulseT(pid)}else if(p.byoLeft>th)setDanger(pid,false)}
+  }else if(sys==='sudden'){p.main-=1;if(p.main<=0){setDanger(pid,false);expire();return}if(p.main<=10){playBeep(1-p.main/10);setDanger(pid,true);pulseT(pid)}else setDanger(pid,false)}
+  else if(sys==='canadian'){
+    if(!p.inByo){p.main-=1;if(p.main<=0){p.main=0;p.inByo=true;p.byoLeft=p.byoTotal;p.movInPer=0;setDanger(pid,false)}else if(p.main<=10){playBeep(1-p.main/10);setDanger(pid,true);pulseT(pid)}else setDanger(pid,false)}
+    else{p.byoLeft-=1;if(p.byoLeft<=0){setDanger(pid,false);expire();return}var t2=byoTh();if(p.byoLeft<=t2){playBeep(1-p.byoLeft/t2);setDanger(pid,true);pulseT(pid)}else setDanger(pid,false)}
+  }else if(sys==='fischer'){p.main-=1;if(p.main<=0){setDanger(pid,false);expire();return}if(p.main<=10){playBeep(1-p.main/10);setDanger(pid,true);pulseT(pid)}else setDanger(pid,false)}
+  else if(sys==='simple'){p.main-=1;if(p.main<=0){setDanger(pid,false);expire();return}var t3=byoTh();if(p.main<=t3){playBeep(1-p.main/t3);setDanger(pid,true);pulseT(pid)}else setDanger(pid,false)}
+  updDisplay(pid);
+  rPushClock();
 }
+function pulseT(pid){var el=gel('t'+pid);el.classList.remove('pulse');void el.offsetWidth;el.classList.add('pulse')}
+function expire(){clearInterval(gs.iv);gs.phase='expired';updDisplay(gs.active);updHalves();updMVC();showExpired(gs.active);rPushClock()}
 
-// ════════════════════════════════════════════════════════
-// DROPDOWN
-// ════════════════════════════════════════════════════════
-let dropdownOpen=false, currentSystem=settings.system;
-function toggleDropdown() { dropdownOpen=!dropdownOpen; document.getElementById('ts-trigger').classList.toggle('open',dropdownOpen); document.getElementById('ts-panel').classList.toggle('open',dropdownOpen); }
-function closeDropdown()  { dropdownOpen=false; document.getElementById('ts-trigger').classList.remove('open'); document.getElementById('ts-panel').classList.remove('open'); }
-function buildDropdown() {
-  const panel=document.getElementById('ts-panel'); panel.innerHTML='';
-  SYSTEM_ORDER.forEach(id=>{
-    const sys=TIME_SYSTEMS[id];
-    const opt=document.createElement('div');
-    opt.className='csp-option'+(id===currentSystem?' selected':''); opt.dataset.id=id;
-    opt.innerHTML=`<div class="csp-icon">${sys.icon}</div><div class="csp-text"><div class="csp-name">${sys.name}</div><div class="csp-hint">${sys.shortDesc}</div></div><div class="csp-check">✓</div>`;
-    opt.addEventListener('click',()=>selectSystem(id)); panel.appendChild(opt);
-  });
-}
-function selectSystem(id) {
-  currentSystem=id; const sys=TIME_SYSTEMS[id];
-  document.getElementById('ts-value').textContent=sys.name;
-  document.getElementById('ts-desc').textContent=sys.shortDesc;
-  document.querySelectorAll('.csp-option').forEach(o=>o.classList.toggle('selected',o.dataset.id===id));
-  buildTimeFields(id); buildRulesBox(id);
-  document.getElementById('sh-subtitle').textContent=sys.name;
-  closeDropdown();
-}
-
-// ════════════════════════════════════════════════════════
-// TIME FIELDS
-// ════════════════════════════════════════════════════════
-function buildTimeFields(sysId) {
-  const sys=TIME_SYSTEMS[sysId], container=document.getElementById('time-fields');
-  container.innerHTML='';
-  if(!sys.fields.length) return;
-  const lbl=document.createElement('div'); lbl.className='section-label'; lbl.textContent='Time Settings'; lbl.style.marginTop='28px';
-  container.appendChild(lbl);
-  sys.fields.forEach(f=>{
-    const val=settings[f.id]!==undefined?settings[f.id]:sys.defaults[f.id];
-    const row=document.createElement('div'); row.className='time-row';
-    let inputHTML='';
-    if(f.type==='mmss'){
-      const m=Math.floor(val/60), s=val%60;
-      inputHTML=`<div class="time-input-group"><input class="time-input" type="number" id="f-${f.id}-m" min="0" max="999" value="${m}"><span class="time-colon">:</span><input class="time-input" type="number" id="f-${f.id}-s" min="0" max="59" value="${s}"></div>`;
-    } else {
-      inputHTML=`<div class="time-input-group"><input class="count-input" type="number" id="f-${f.id}" min="1" max="999" value="${val}"><span class="row-unit">${f.unit||''}</span></div>`;
-    }
-    row.innerHTML=`<div class="time-row-lhs"><div class="time-row-label">${f.label}</div><div class="time-row-sublabel">${f.sub}</div></div>${inputHTML}`;
-    container.appendChild(row);
-  });
-}
-function buildRulesBox(sysId) { document.getElementById('rules-text').innerHTML=TIME_SYSTEMS[sysId].rules; }
-function readTimeFields() {
-  const sys=TIME_SYSTEMS[currentSystem], out={system:currentSystem};
-  sys.fields.forEach(f=>{
-    if(f.type==='mmss'){
-      const m=parseInt(document.getElementById(`f-${f.id}-m`).value)||0;
-      const s=parseInt(document.getElementById(`f-${f.id}-s`).value)||0;
-      out[f.id]=m*60+s;
-    } else {
-      out[f.id]=Math.max(1,parseInt(document.getElementById(`f-${f.id}`).value)||1);
-    }
-  });
-  return {...DEFAULT_SETTINGS,...out};
-}
-
-// ════════════════════════════════════════════════════════
-// SETTINGS PAGE
-// ════════════════════════════════════════════════════════
-function loadSettingsUI() {
-  currentSystem=settings.system; const sys=TIME_SYSTEMS[currentSystem];
-  document.getElementById('ts-value').textContent=sys.name;
-  document.getElementById('ts-desc').textContent=sys.shortDesc;
-  document.getElementById('sh-subtitle').textContent=sys.name;
-  buildDropdown(); buildTimeFields(currentSystem); buildRulesBox(currentSystem);
-  document.getElementById('layout-stacked').classList.toggle('selected',currentLayout==='stacked');
-  document.getElementById('layout-side').classList.toggle('selected',currentLayout==='side');
-  renderRemoteSection();
-}
-function applyAndPlay() {
-  if(remoteSession && !remoteSession.isHost){ showToast('Only host can change time settings'); return; }
-  const s=readTimeFields(); saveSettings(s); resetGame(); showClock();
-}
-
-// ════════════════════════════════════════════════════════
-// PRESETS
-// ════════════════════════════════════════════════════════
-function fmtDur(secs) {
-  if(secs>=60&&secs%60===0) return Math.floor(secs/60)+'m';
-  if(secs>=60) return Math.floor(secs/60)+'m'+(secs%60)+'s';
-  return secs+'s';
-}
-function presetLabel(p) {
-  if(p.system==='japanese') return `${fmtDur(p.mainTime)} + ${p.byoCount}×${fmtDur(p.byoTime)}`;
-  if(p.system==='sudden')   return `${fmtDur(p.mainTime)} SD`;
-  if(p.system==='canadian') return `${fmtDur(p.mainTime)} + ${p.movesPerPeriod}mv/${fmtDur(p.byoTime)}`;
-  if(p.system==='fischer')  return `${fmtDur(p.mainTime)} +${p.increment}s`;
-  if(p.system==='simple')   return `${fmtDur(p.moveTime)} / move`;
-  return '';
-}
-function saveCurrentAsPreset() {
-  const s=readTimeFields();
-  showModal('Save Preset','Give this configuration a name','e.g. Tournament 30m',presetLabel(s),'Save',(name)=>{
-    presets.push({name,...s}); savePresets(presets); renderPresets(); showToast(`"${name}" saved`);
-  });
-}
-function deletePreset(idx){ presets.splice(idx,1); savePresets(presets); renderPresets(); }
-function loadPreset(idx) { const p=presets[idx]; settings={...DEFAULT_SETTINGS,...p}; saveSettings(settings); loadSettingsUI(); renderPresets(); showToast(`Loaded "${p.name}"`); }
-function renderPresets() {
-  const grid=document.getElementById('presets-grid'); grid.innerHTML='';
-  if(!presets.length){ grid.innerHTML=`<div style="grid-column:1/-1;font-size:12px;opacity:.3;font-family:'DM Mono',monospace;padding:8px 0;">No presets yet — save your first configuration above.</div>`; return; }
-  presets.forEach((p,i)=>{
-    const card=document.createElement('div');
-    card.className='preset-card'+(p.system===settings.system&&presetLabel(p)===presetLabel(settings)?' selected':'');
-    const si=TIME_SYSTEMS[p.system];
-    card.innerHTML=`<div class="preset-name">${p.name}</div><div class="preset-system">${si?.icon||''} ${si?.name||p.system}</div><div class="preset-desc">${presetLabel(p)}</div><button class="delete-preset" onclick="event.stopPropagation();deletePreset(${i})">✕</button>`;
-    card.addEventListener('click',()=>loadPreset(i)); grid.appendChild(card);
-  });
-}
-
-// ════════════════════════════════════════════════════════
-// REMOTE PLAY  (Firebase Firestore)
-// ════════════════════════════════════════════════════════
-let remoteSession = null; // { roomId, userId, userName, isHost, assignedRole, unsub, lastActionTs }
-let ignoreNext    = false;
-let pushTimer     = null;
-let applyingRemoteTap = false;
-
-function makeUserId() { return 'u'+Math.random().toString(36).slice(2,10); }
-function normalizeRoomName(name) { return (name||'').trim().toUpperCase().replace(/[^A-Z0-9 _-]/g,'').slice(0,20); }
-function roomRef() { return remoteSession?doc(db,'rooms',remoteSession.roomId):null; }
-function userRole() { return remoteSession?.isHost ? 'host' : (remoteSession?.assignedRole||'viewer'); }
-function canControlHalf(pid) {
-  const role=userRole();
-  if(!remoteSession) return true;
-  if(role==='host') return true;
-  if(role==='black') return pid===1;
-  if(role==='white') return pid===2;
+// ─────────────────────────────────────────────
+// GAME CONTROL
+// ─────────────────────────────────────────────
+function canTap(pid){
+  if(!RS||RS.so)return true;
+  var r=RS.mr;
+  if(r==='host')return true;
+  if(r==='black'&&pid===1)return true;
+  if(r==='white'&&pid===2)return true;
   return false;
 }
-
-function encodeState() {
-  return {
-    state:{
-      phase:state.phase, active:state.active, moves:state.moves,
-      p1:state.p1?{...state.p1}:null, p2:state.p2?{...state.p2}:null,
-    },
-    settings:{...settings},
-    updatedAt:Date.now(),
-  };
-}
-
-async function pushRemoteState() {
-  if(!remoteSession?.isHost) return;
-  clearTimeout(pushTimer);
-  pushTimer=setTimeout(async ()=>{
-    try {
-      ignoreNext=true;
-      await setDoc(roomRef(), encodeState(), { merge:true });
-    } catch(e){ console.warn('Remote push error',e); }
-  }, 90);
-}
-
-async function sendRemoteAction(type, payload={}) {
-  if(!remoteSession || remoteSession.isHost) return;
-  try {
-    await setDoc(roomRef(), { pendingAction:{ type, payload, by:remoteSession.userId, at:Date.now() } }, { merge:true });
-  } catch(e){ console.warn('Remote action error',e); }
-}
-
-function applyRemoteSnapshot(data) {
-  if(!data) return;
-  if(data.settings?.system){ settings={...DEFAULT_SETTINGS,...data.settings}; saveSettings(settings); updateTapBubbles(); }
-  const snapState=data.state;
-  if(!snapState) return;
-  clearInterval(state.interval);
-  state.phase=snapState.phase; state.active=snapState.active; state.moves=snapState.moves||0;
-  state.p1=snapState.p1?{...snapState.p1}:makePlayer();
-  state.p2=snapState.p2?{...snapState.p2}:makePlayer();
-  if(state.phase==='running'){ state.interval=setInterval(tick,1000); document.getElementById('btn-pause').textContent='Pause'; }
-  else if(state.phase==='paused'){ document.getElementById('btn-pause').textContent='Resume'; }
-  else if(state.phase==='expired'){ showExpired(state.active); }
-  else { document.getElementById('btn-pause').textContent='Pause'; }
-  updateDisplay(1); updateDisplay(2); updateHalfClasses(); updateMoveCounter();
-}
-
-function hostHandlePendingAction(data) {
-  if(!remoteSession?.isHost || !data?.pendingAction) return;
-  const act=data.pendingAction;
-  if(!act.at || act.at===remoteSession.lastActionTs) return;
-  remoteSession.lastActionTs=act.at;
-  const attendee=data.attendees?.[act.by];
-  const role=(act.by===remoteSession.userId)?'host':(attendee?.role||'viewer');
-  if(act.type==='tap'){
-    const pid=act.payload?.pid;
-    if((role==='black'&&pid!==1)||(role==='white'&&pid!==2)||role==='viewer') return;
-    applyingRemoteTap=true;
-    switchTurn(pid);
-    applyingRemoteTap=false;
+function switchTurn(fromPid){
+  if(gs.phase==='expired')return;
+  if(!canTap(fromPid))return;
+  if(gs.phase==='idle'){
+    initP();updDisplay(1);updDisplay(2);setDanger(1,false);setDanger(2,false);
+    playPop();ripple(fromPid);startP(fromPid===1?2:1);return;
   }
+  if(gs.phase==='paused')return;
+  if(gs.active!==fromPid)return;
+  var p=fromPid===1?gs.p1:gs.p2,sys=cfg.system;
+  if(sys==='japanese'&&p.inByo)p.byoLeft=p.byoTotal;
+  if(sys==='canadian'&&p.inByo){p.movInPer+=1;if(p.movInPer>=p.movReq){p.movInPer=0;p.byoLeft=p.byoTotal}}
+  if(sys==='fischer')p.main+=p.inc;
+  if(sys==='simple')p.main=p.movTot;
+  gs.moves+=1;setDanger(fromPid,false);playPop();ripple(fromPid);
+  startP(fromPid===1?2:1);updMVC();rPushClock();
 }
-
-async function startHosting(roomName, hostName) {
-  roomName=normalizeRoomName(roomName);
-  hostName=(hostName||'Host').trim().slice(0,24);
-  if(!roomName){ showToast('Enter a room name'); return; }
-  if(!hostName){ showToast('Enter your name'); return; }
-  const userId=makeUserId();
-  remoteSession={roomId:roomName,userId,userName:hostName,isHost:true,assignedRole:'host',unsub:null,lastActionTs:null};
-  try {
-    await setDoc(roomRef(), {
-      roomName,
-      hostId:userId,
-      hostName,
-      attendees:{ [userId]:{ name:hostName, role:'host', joinedAt:Date.now() } },
-      ...encodeState(),
-    }, { merge:true });
-    remoteSession.unsub=onSnapshot(roomRef(), snap=>{
-      if(!snap.exists()) return;
-      const data=snap.data();
-      hostHandlePendingAction(data);
-      renderRemoteSection(data);
-      updateRemoteUI(data);
-    });
-    updateRemoteUI(); renderRemoteSection(); showToast('Room ready: '+roomName);
-  } catch(e){ remoteSession=null; showToast('Could not create room'); console.error(e); }
+function startP(pid){
+  if(cfg.system==='simple'){var np=pid===1?gs.p1:gs.p2;np.main=np.movTot}
+  gs.active=pid;gs.phase='running';updHalves();clearInterval(gs.iv);gs.iv=setInterval(tick,1000);
 }
+function togglePause(){
+  if(gs.phase==='idle'||gs.phase==='expired')return;
+  if(gs.phase==='running'){gs.phase='paused';clearInterval(gs.iv);gel('btnP').textContent='Resume'}
+  else{gs.phase='running';gs.iv=setInterval(tick,1000);gel('btnP').textContent='Pause'}
+  updHalves();rPushClock();
+}
+function resetGame(){
+  clearInterval(gs.iv);gs.phase='idle';gs.active=null;initP();
+  gel('btnP').textContent='Pause';gel('expov').classList.remove('on');
+  setDanger(1,false);setDanger(2,false);
+  updDisplay(1);updDisplay(2);updHalves();updTapLbls();updMVC();rPushClock();
+}
+function showExpired(pid){gel('expwho').textContent=(pid===1?'Black':'White')+' loses on time';gel('expov').classList.add('on')}
 
-async function joinRoom(roomName, userName) {
-  roomName=normalizeRoomName(roomName);
-  userName=(userName||'Guest').trim().slice(0,24);
-  if(!roomName){ showToast('Type a room name'); return; }
-  if(!userName){ showToast('Type your name'); return; }
-  const userId=makeUserId();
-  const ref=doc(db,'rooms',roomName);
-  const snap=await getDoc(ref);
-  if(!snap.exists()){ showToast('Room not found'); return; }
-  remoteSession={roomId:roomName,userId,userName,isHost:false,assignedRole:'viewer',unsub:null,lastActionTs:null};
-  try {
-    await updateDoc(ref, { [`attendees.${userId}`]:{ name:userName, role:'viewer', joinedAt:Date.now() } });
-  } catch(e){ console.warn(e); }
-  remoteSession.unsub=onSnapshot(ref,s=>{
-    if(!s.exists()){ showToast('Room closed'); leaveRoom(false); return; }
-    const data=s.data();
-    remoteSession.assignedRole=(data.attendees?.[remoteSession.userId]?.role)||'viewer';
-    if(ignoreNext){ignoreNext=false;return;}
-    applyRemoteSnapshot(data);
-    renderRemoteSection(data);
-    updateRemoteUI(data);
+function ripple(pid){var h=gel('h'+pid),r=document.createElement('div');r.className='rip';r.style.cssText='width:120px;height:120px;left:50%;top:50%;margin-left:-60px;margin-top:-60px;';h.appendChild(r);setTimeout(function(){r.remove()},600)}
+
+// ─────────────────────────────────────────────
+// DROPDOWN
+// ─────────────────────────────────────────────
+var ddOpen=false, curSys=cfg.system;
+function toggleDD(){ddOpen=!ddOpen;gel('cstrig').classList.toggle('open',ddOpen);gel('cspan').classList.toggle('open',ddOpen)}
+function closeDD(){ddOpen=false;gel('cstrig').classList.remove('open');gel('cspan').classList.remove('open')}
+function buildDD(){
+  var pan=gel('cspan');pan.innerHTML='';
+  SORD.forEach(function(id){
+    var sys=SYS[id],opt=document.createElement('div');
+    opt.className='csopt'+(id===curSys?' sel':'');opt.dataset.id=id;
+    opt.innerHTML='<div class="csico">'+sys.icon+'</div><div class="cstxt"><div class="csnm">'+sys.name+'</div><div class="csht">'+sys.sd+'</div></div><div class="csck">✓</div>';
+    opt.addEventListener('click',function(){selSys(id)});
+    pan.appendChild(opt);
   });
-  updateRemoteUI(); renderRemoteSection(); showToast('Joined '+roomName);
+}
+function selSys(id){
+  curSys=id;var sys=SYS[id];
+  gel('csv').textContent=sys.name;gel('csd').textContent=sys.sd;
+  gel('ssub').textContent=sys.name;
+  pan.querySelectorAll('.csopt').forEach(function(o){o.classList.toggle('sel',o.dataset.id===id)});
+  buildTF(id);buildRules(id);closeDD();
+}
+var pan=gel('cspan');
+
+// ─────────────────────────────────────────────
+// TIME FIELDS
+// ─────────────────────────────────────────────
+function buildTF(sysId){
+  var sys=SYS[sysId],con=gel('tfields');con.innerHTML='';
+  if(!sys.fields.length)return;
+  var lbl=document.createElement('div');lbl.className='sl';lbl.textContent='Time Settings';lbl.style.marginTop='28px';con.appendChild(lbl);
+  sys.fields.forEach(function(f){
+    var val=cfg[f.id]!==undefined?cfg[f.id]:sys.def[f.id];
+    var row=document.createElement('div');row.className='trow';
+    var inp='';
+    if(f.t==='mm'){var m=Math.floor(val/60),s=val%60;inp='<div class="tig"><input class="tin" type="number" id="f'+f.id+'m" min="0" max="999" value="'+m+'"><span class="tcol">:</span><input class="tin" type="number" id="f'+f.id+'s" min="0" max="59" value="'+s+'"></div>'}
+    else{inp='<div class="tig"><input class="cin" type="number" id="f'+f.id+'" min="1" max="999" value="'+val+'"><span class="tunit">'+(f.unit||'')+'</span></div>'}
+    row.innerHTML='<div class="trlhs"><div class="trlbl">'+f.lbl+'</div><div class="trsub">'+f.sub+'</div></div>'+inp;
+    con.appendChild(row);
+  });
+}
+function buildRules(sysId){gel('rtxt').innerHTML=SYS[sysId].rules}
+function readTF(){
+  var sys=SYS[curSys],out={system:curSys};
+  sys.fields.forEach(function(f){
+    if(f.t==='mm'){var m=parseInt(gel('f'+f.id+'m').value)||0,s=parseInt(gel('f'+f.id+'s').value)||0;out[f.id]=m*60+s}
+    else{out[f.id]=Math.max(1,parseInt(gel('f'+f.id).value)||1)}
+  });
+  return Object.assign({},DEFS,out);
 }
 
-async function setAttendeeRole(uid, role) {
-  if(!remoteSession?.isHost) return;
-  try { await updateDoc(roomRef(), { [`attendees.${uid}.role`]: role }); }
-  catch(e){ console.warn('Role update failed',e); }
+// ─────────────────────────────────────────────
+// SETTINGS PAGE
+// ─────────────────────────────────────────────
+function loadSUI(){
+  curSys=cfg.system;var sys=SYS[curSys];
+  gel('csv').textContent=sys.name;gel('csd').textContent=sys.sd;gel('ssub').textContent=sys.name;
+  buildDD();buildTF(curSys);buildRules(curSys);
+  gel('lStk').classList.toggle('sel',curLayout==='stacked');
+  gel('lSbs').classList.toggle('sel',curLayout==='side');
+  renderRIn();
+}
+function applyAndPlay(){var s=readTF();saveSettings(s);resetGame();showClock()}
+function showSettings(){if(gs.phase==='running')togglePause();gel('cp').classList.add('hidden');gel('sp').classList.remove('hidden');loadSUI();renderPresets()}
+function showClock(){gel('sp').classList.add('hidden');gel('cp').classList.remove('hidden')}
+
+// ─────────────────────────────────────────────
+// PRESETS
+// ─────────────────────────────────────────────
+function fmtD(s){if(s>=60&&s%60===0)return Math.floor(s/60)+'m';if(s>=60)return Math.floor(s/60)+'m'+(s%60)+'s';return s+'s'}
+function pLabel(p){
+  if(p.system==='japanese')return fmtD(p.mainTime)+' + '+p.byoCount+'×'+fmtD(p.byoTime);
+  if(p.system==='sudden')return fmtD(p.mainTime)+' SD';
+  if(p.system==='canadian')return fmtD(p.mainTime)+' + '+p.movesPerPeriod+'mv/'+fmtD(p.byoTime);
+  if(p.system==='fischer')return fmtD(p.mainTime)+' +'+p.increment+'s';
+  if(p.system==='simple')return fmtD(p.moveTime)+' / move';
+  return '';
+}
+function savePreset(){
+  var s=readTF();
+  showModal({title:'Save Preset',sub:'Name this configuration',ph:'e.g. Tournament 30m',def:pLabel(s),ok:'Save',cb:function(name){presets.push(Object.assign({name:name},s));savePresets(presets);renderPresets();toast('"'+name+'" saved')}});
+}
+function delPreset(i){presets.splice(i,1);savePresets(presets);renderPresets()}
+function loadPreset(i){cfg=Object.assign({},DEFS,presets[i]);saveSettings(cfg);loadSUI();renderPresets();toast('Loaded "'+presets[i].name+'"')}
+function renderPresets(){
+  var g=gel('pgrid');g.innerHTML='';
+  if(!presets.length){g.innerHTML='<div style="grid-column:1/-1;font-size:12px;opacity:.3;font-family:DM Mono,monospace;padding:8px 0">No presets yet.</div>';return}
+  presets.forEach(function(p,i){
+    var c=document.createElement('div'),si=SYS[p.system];
+    c.className='pcard'+(p.system===cfg.system&&pLabel(p)===pLabel(cfg)?' sel':'');
+    c.innerHTML='<div class="pnm">'+p.name+'</div><div class="psy">'+(si?si.icon+' '+si.name:p.system)+'</div><div class="pde">'+pLabel(p)+'</div><button class="pdel">✕</button>';
+    c.querySelector('.pdel').addEventListener('click',function(e){e.stopPropagation();delPreset(i)});
+    c.addEventListener('click',function(){loadPreset(i)});
+    g.appendChild(c);
+  });
 }
 
-async function leaveRoom(show=true) {
-  if(remoteSession?.unsub) remoteSession.unsub();
-  const prev=remoteSession;
-  remoteSession=null;
-  if(prev){
-    try {
-      if(prev.isHost) await deleteDoc(doc(db,'rooms',prev.roomId));
-      else await updateDoc(doc(db,'rooms',prev.roomId), { [`attendees.${prev.userId}`]: null });
-    } catch(e){}
+// ─────────────────────────────────────────────
+// MODAL
+// ─────────────────────────────────────────────
+var modalCB=null;
+function showModal(o){
+  modalCB=o.cb||null;
+  gel('mtit').textContent=o.title||'';
+  gel('msub').textContent=o.sub||'';
+  var inp=gel('minp');
+  inp.placeholder=o.ph||'';inp.value=o.def||'';
+  inp.style.display=o.noInp?'none':'block';
+  var btn=gel('mok');btn.textContent=o.ok||'OK';
+  btn.className='mok'+(o.danger?' danger':'');
+  gel('mback').classList.add('on');
+  if(!o.noInp)setTimeout(function(){inp.focus();inp.select()},280);
+}
+function closeModal(){gel('mback').classList.remove('on');modalCB=null}
+function confirmModal(){
+  var inp=gel('minp'),noInp=inp.style.display==='none';
+  var val=noInp?'__ok__':inp.value.trim();
+  if(!val){inp.focus();return}
+  closeModal();if(modalCB)modalCB(val);
+}
+
+// ─────────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────────
+var toastT;
+function toast(msg){var t=gel('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on')},2600)}
+
+// ─────────────────────────────────────────────
+// TAP LABELS
+// ─────────────────────────────────────────────
+function updTapLbls(){var l=SYS[cfg.system]?SYS[cfg.system].tl:'';gel('tl1').textContent=l;gel('tl2').textContent=l}
+
+// ─────────────────────────────────────────────
+// REMOTE — state object
+// ─────────────────────────────────────────────
+var RS=null; // {rid,myId,myName,mr(myRole),role:'host'|'part',so(steppedOut),unR,unM}
+var cachedM={};
+var pushT=null, ignNext=false, remOpen=false;
+// Firebase refs (populated after Firebase loads)
+var FB={db:null,setDoc:null,updateDoc:null,onSnapshot:null,doc:null,col:null,ready:false};
+
+function mkCode(){var c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:6},function(){return c[Math.floor(Math.random()*c.length)]}).join('')}
+function encClock(){return{phase:gs.phase,active:gs.active,moves:gs.moves,p1:gs.p1?Object.assign({},gs.p1):null,p2:gs.p2?Object.assign({},gs.p2):null,ts:Date.now()}}
+
+function rPushClock(){
+  if(!RS||RS.so||RS.role!=='host'||!FB.ready)return;
+  clearTimeout(pushT);
+  pushT=setTimeout(function(){
+    try{ignNext=true;FB.updateDoc(FB.doc(FB.db,'rooms',RS.rid),{clock:encClock(),settings:Object.assign({},cfg)})}
+    catch(e){console.warn('push fail',e)}
+  },100);
+}
+
+function applyRClock(data){
+  if(!data)return;
+  if(data.settings&&data.settings.system){cfg=Object.assign({},DEFS,data.settings);saveSettings(cfg);updTapLbls()}
+  var c=data.clock;if(!c)return;
+  clearInterval(gs.iv);
+  gs.phase=c.phase;gs.active=c.active;gs.moves=c.moves||0;
+  gs.p1=c.p1?Object.assign({},c.p1):mkP();gs.p2=c.p2?Object.assign({},c.p2):mkP();
+  if(gs.phase==='running'){gs.iv=setInterval(tick,1000);gel('btnP').textContent='Pause'}
+  else if(gs.phase==='paused'){gel('btnP').textContent='Resume'}
+  else if(gs.phase==='expired'){showExpired(gs.active)}
+  else{gel('btnP').textContent='Pause'}
+  updDisplay(1);updDisplay(2);updHalves();updMVC();
+}
+
+function startML(rid){
+  return FB.onSnapshot(FB.col(FB.db,'rooms',rid,'members'),function(snap){
+    cachedM={};snap.forEach(function(d){cachedM[d.id]=d.data()});
+    if(RS&&RS.role==='part'){var me=cachedM[RS.myId];if(me&&me.role&&me.role!==RS.mr){RS.mr=me.role;updRBar()}}
+    renderRIn();
+  });
+}
+
+// HOST
+function promptHost(){
+  showModal({title:'Your Name in Room',sub:'Others will see this.',ph:'e.g. Tanaka',def:localStorage.getItem('gc_name')||'',ok:'Create Room',cb:function(n){localStorage.setItem('gc_name',n);doHost(n)}});
+}
+function doHost(myName){
+  if(!FB.ready){toast('Connecting to Firebase…');return}
+  var rid=mkCode(),myId=getMyId();
+  FB.setDoc(FB.doc(FB.db,'rooms',rid),{hostId:myId,clock:encClock(),settings:Object.assign({},cfg)})
+  .then(function(){return FB.setDoc(FB.doc(FB.db,'rooms',rid,'members',myId),{name:myName,role:'host',active:true})})
+  .then(function(){
+    var unR=FB.onSnapshot(FB.doc(FB.db,'rooms',rid),function(snap){if(!snap.exists())return;if(ignNext){ignNext=false;return}renderRIn()});
+    var unM=startML(rid);
+    RS={rid:rid,myId:myId,myName:myName,mr:'host',role:'host',so:false,unR:unR,unM:unM};
+    updRBar();renderRIn();toast('Room ready: '+rid);
+  }).catch(function(e){toast('Could not create room');console.error(e)});
+}
+
+// GUEST
+function promptJoin(){
+  var code=gel('joinInp')?gel('joinInp').value:'';
+  showModal({title:'Your Name in Room',sub:'Host will see this name.',ph:'e.g. Watanabe',def:localStorage.getItem('gc_name')||'',ok:'Join',cb:function(n){localStorage.setItem('gc_name',n);doJoin(code,n)}});
+}
+function doJoin(rid,myName){
+  if(!FB.ready){toast('Connecting to Firebase…');return}
+  rid=rid.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(rid.length<4){toast('Enter a valid code');return}
+  var myId=getMyId();
+  FB.setDoc(FB.doc(FB.db,'rooms',rid,'members',myId),{name:myName,role:'viewer',active:true})
+  .then(function(){
+    var unR=FB.onSnapshot(FB.doc(FB.db,'rooms',rid),function(snap){
+      if(!snap.exists()){toast('Room not found');doLeave();return}
+      if(ignNext){ignNext=false;return}
+      applyRClock(snap.data());
+    });
+    var unM=startML(rid);
+    RS={rid:rid,myId:myId,myName:myName,mr:'viewer',role:'part',so:false,unR:unR,unM:unM};
+    updRBar();renderRIn();toast('Joined room '+rid);
+  }).catch(function(e){toast('Could not join room')});
+}
+
+// STEP OUT / IN
+function doStepOut(){
+  if(!RS||RS.so)return;
+  if(RS.unR)RS.unR();if(RS.unM)RS.unM();
+  clearInterval(gs.iv);
+  if(FB.ready)try{FB.updateDoc(FB.doc(FB.db,'rooms',RS.rid,'members',RS.myId),{active:false})}catch(e){}
+  RS.so=true;updRBar();renderRIn();toast('Stepped out');
+}
+function doStepIn(){
+  if(!RS||!RS.so)return;
+  var rid=RS.rid,myId=RS.myId;
+  if(FB.ready)try{FB.updateDoc(FB.doc(FB.db,'rooms',rid,'members',myId),{active:true})}catch(e){}
+  var unR=FB.onSnapshot(FB.doc(FB.db,'rooms',rid),function(snap){
+    if(!snap.exists()){toast('Room gone');doLeave();return}
+    if(ignNext){ignNext=false;return}
+    applyRClock(snap.data());renderRIn();
+  });
+  var unM=startML(rid);
+  RS.unR=unR;RS.unM=unM;RS.so=false;
+  updRBar();renderRIn();toast('Stepped back in');
+}
+function toggleSO(){if(RS&&RS.so)doStepIn();else doStepOut()}
+
+// LEAVE
+function doLeave(){
+  if(!RS)return;
+  if(RS.unR)RS.unR();if(RS.unM)RS.unM();
+  clearInterval(gs.iv);
+  if(FB.ready)try{FB.updateDoc(FB.doc(FB.db,'rooms',RS.rid,'members',RS.myId),{active:false})}catch(e){}
+  RS=null;updRBar();renderRIn();toast('Left room');
+}
+function confirmLeave(){
+  showModal({title:'Leave Room',sub:"You'll need the code to rejoin.",ok:'Leave',danger:true,noInp:true,cb:doLeave});
+}
+
+// SET ROLE
+function setRole(uid,role){
+  if(!RS||RS.role!=='host'||!FB.ready)return;
+  try{FB.updateDoc(FB.doc(FB.db,'rooms',RS.rid,'members',uid),{role:role})}catch(e){toast('Could not set role')}
+}
+
+function copyCode(){if(!RS)return;if(navigator.clipboard)navigator.clipboard.writeText(RS.rid).then(function(){toast('Code copied!')}).catch(function(){toast(RS.rid)});else toast(RS.rid)}
+
+// REMOTE TOGGLE
+function toggleRemote(){
+  remOpen=!remOpen;
+  gel('rtogBtn').classList.toggle('open',remOpen);
+  gel('rcoll').classList.toggle('open',remOpen);
+  if(remOpen)renderRIn();
+}
+
+// UPDATE REMOTE BAR (clock screen)
+function updRBar(){
+  var bar=gel('rbar');
+  if(!RS){bar.classList.remove('on');return}
+  bar.classList.add('on');
+  gel('rcd').textContent=RS.rid;gel('rnm').textContent=RS.myName;
+  var bg=gel('rbg');
+  var rc={host:'h',black:'b',white:'w',viewer:'v'};
+  var rl=RS.role==='host'?'Host':RS.mr.charAt(0).toUpperCase()+RS.mr.slice(1);
+  bg.textContent=rl;bg.className='rbadge '+(RS.role==='host'?'h':(rc[RS.mr]||'v'));
+  gel('rsoBtn').textContent=RS.so?'Step In':'Step Out';
+  gel('rtsub').textContent=RS.so?'Stepped out of '+RS.rid:'In room '+RS.rid;
+}
+
+// RENDER REMOTE INNER (settings section)
+function renderRIn(){
+  if(!remOpen)return;
+  var el=gel('rin');
+  if(!RS){
+    el.innerHTML='<div class="rpanels">'+
+      '<div class="rpanel"><div class="rptit">Host a Room</div><div class="rpdesc">Create a room. Your time settings apply to all.</div><button class="rpbtn" id="rHostBtn">Create Room</button></div>'+
+      '<div class="rpanel"><div class="rptit">Join a Room</div><div class="rpdesc">Enter the 6-letter code from host.</div><input class="rcodein" id="joinInp" placeholder="ABC123" maxlength="6" autocomplete="off" autocapitalize="characters"><button class="rpbtn" id="rJoinBtn" style="margin-top:8px">Join</button></div>'+
+      '</div>';
+    gel('rHostBtn').addEventListener('click',promptHost);
+    gel('rJoinBtn').addEventListener('click',promptJoin);
+    return;
   }
-  updateRemoteUI(); renderRemoteSection(); if(show) showToast('Left session');
-}
-
-function copyCode() {
-  if(!remoteSession) return;
-  navigator.clipboard?.writeText(remoteSession.roomId).then(()=>showToast('Room copied')).catch(()=>showToast(remoteSession.roomId));
-}
-
-function updateRemoteUI(snapshotData=null) {
-  const bar=document.getElementById('remote-bar');
-  if(remoteSession){
-    bar.classList.add('active');
-    document.getElementById('remote-code-display').textContent=remoteSession.roomId;
-    const badge=document.getElementById('remote-badge');
-    const r=userRole();
-    badge.textContent=remoteSession.isHost?'Host':r[0].toUpperCase()+r.slice(1);
-    badge.className='remote-badge '+(remoteSession.isHost?'host':'guest');
-  } else bar.classList.remove('active');
-}
-
-function renderAttendees(data) {
-  const attendees=Object.entries(data?.attendees||{}).filter(([,v])=>v&&typeof v==='object');
-  if(!attendees.length) return '<div style="font-size:11px;opacity:.35;font-family:DM Mono,monospace;">No attendees yet.</div>';
-  return `<div class="attendee-list">${attendees.map(([uid,a])=>{
-    const role=(a.role||'viewer');
-    const isSelf=uid===remoteSession?.userId;
-    const select=remoteSession?.isHost && !isSelf
-      ? `<select class="role-select" onchange="setAttendeeRole('${uid}',this.value)"><option value="black" ${role==='black'?'selected':''}>Black</option><option value="white" ${role==='white'?'selected':''}>White</option><option value="viewer" ${role==='viewer'?'selected':''}>Viewer</option></select>`
-      : `<span class="role-pill">${role}</span>`;
-    return `<div class="attendee-row"><div class="attendee-meta"><div class="attendee-name">${a.name||'Guest'}${isSelf?' (You)':''}</div><div class="attendee-id">${uid.slice(0,8)}</div></div>${select}</div>`;
-  }).join('')}</div>`;
-}
-
-function renderRemoteSection(snapshotData=null) {
-  const el=document.getElementById('remote-section-ui');
-  if(remoteSession){
-    el.innerHTML=`
-      <div class="remote-status-row">
-        <div class="remote-status-code">${remoteSession.roomId}</div>
-        <button class="remote-copy-btn" onclick="copyCode()">Copy</button>
-        <button class="remote-action-btn" style="margin-left:4px;" onclick="leaveRoom()">Leave</button>
-      </div>
-      <div style="font-size:11px;font-family:'DM Mono',monospace;opacity:.35;margin-top:8px;line-height:1.6;">
-        ${remoteSession.isHost?'Host controls official game state and assigns roles below.':'Host controls official time. Your assigned role determines which clock you can tap.'}
-      </div>
-      ${remoteSession.isHost?`<div class="section-label" style="margin-top:14px;">Attendees & Roles</div>${renderAttendees(snapshotData||{})}`:''}
-      ${!remoteSession.isHost?`<div style="margin-top:10px;font-size:11px;opacity:.55;">Your role: <strong style="color:var(--accent);text-transform:uppercase;letter-spacing:.08em;">${userRole()}</strong></div>`:''}`;
-  } else {
-    el.innerHTML=`
-      <div class="remote-panels">
-        <div class="remote-panel">
-          <div class="remote-panel-title">Host</div>
-          <div class="remote-panel-desc">Room Name is required. Host time is authoritative.</div>
-          <input class="remote-code-input" id="host-room-input" placeholder="ROOM NAME" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="characters" style="margin-bottom:8px;letter-spacing:.08em;text-transform:none;text-align:left;">
-          <input class="remote-code-input" id="host-name-input" placeholder="Your name" maxlength="24" spellcheck="false" autocomplete="off" style="margin-bottom:8px;letter-spacing:.04em;text-transform:none;text-align:left;">
-          <button class="remote-action-btn accent" onclick="startHosting(document.getElementById('host-room-input').value,document.getElementById('host-name-input').value)">Create Room</button>
-        </div>
-        <div class="remote-panel">
-          <div class="remote-panel-title">Join</div>
-          <div class="remote-panel-desc">Type Room Name and your name before joining.</div>
-          <div class="remote-join-row" style="flex-direction:column;">
-            <input class="remote-code-input" id="join-room-input" placeholder="ROOM NAME" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="characters" style="letter-spacing:.08em;text-transform:none;text-align:left;">
-            <input class="remote-code-input" id="join-name-input" placeholder="Your name" maxlength="24" spellcheck="false" autocomplete="off" style="letter-spacing:.04em;text-transform:none;text-align:left;">
-            <button class="remote-action-btn accent" onclick="joinRoom(document.getElementById('join-room-input').value,document.getElementById('join-name-input').value)">Join</button>
-          </div>
-        </div>
-      </div>`;
+  if(RS.so){
+    el.innerHTML='<div class="rinfo">Stepped out of <strong style="color:var(--acc)">'+RS.rid+'</strong>. Clock continues for others.</div>'+
+      '<div class="rbtns" style="margin-top:10px"><button class="rpbtn" id="rSIBtn">Step In</button><button class="rpbtn rd" id="rLv2Btn">Leave</button></div>';
+    gel('rSIBtn').addEventListener('click',doStepIn);
+    gel('rLv2Btn').addEventListener('click',confirmLeave);
+    return;
   }
+  var isHost=RS.role==='host';
+  var pc=isHost?'h':{black:'b',white:'w',viewer:'v'}[RS.mr]||'v';
+  var pn=isHost?'Host':RS.mr.charAt(0).toUpperCase()+RS.mr.slice(1);
+  var mHtml='';
+  if(isHost){
+    var rows='';
+    Object.keys(cachedM).forEach(function(uid){
+      if(uid===RS.myId)return;
+      var m=cachedM[uid];
+      var st=m.active?'<span class="monl">● Online</span>':'<span class="maway">○ Away</span>';
+      var rb=['black','white','viewer'].map(function(r){
+        var cls=m.role===r?' s'+r.charAt(0):'';
+        return'<button class="rolebtn'+cls+'" data-uid="'+uid+'" data-role="'+r+'">'+(r.charAt(0).toUpperCase()+r.slice(1))+'</button>';
+      }).join('');
+      rows+='<div class="mrow"><span class="mname">'+(m.name||uid)+'</span>'+st+'<div class="rpick">'+rb+'</div></div>';
+    });
+    if(rows)mHtml='<div style="margin-top:8px"><div class="mlbl">Participants</div>'+rows+'</div>';
+  }
+  el.innerHTML=
+    '<div class="rcoderow"><div class="rcodebig">'+RS.rid+'</div><span class="rpill '+pc+'">'+pn+'</span><button class="rpbtn gy" id="rCpBtn" style="font-size:11px;padding:0 12px;min-height:34px">Copy</button></div>'+
+    '<div class="rinfo">'+(isHost?'Your settings active. Share the code.':'Host\'s clock and settings synced.')+'</div>'+
+    '<div class="rbtns"><button class="rpbtn gy" id="rSOBtn2">Step Out</button><button class="rpbtn rd" id="rLvBtn2">Leave Room</button></div>'+
+    mHtml;
+  gel('rCpBtn').addEventListener('click',copyCode);
+  gel('rSOBtn2').addEventListener('click',doStepOut);
+  gel('rLvBtn2').addEventListener('click',confirmLeave);
+  el.querySelectorAll('.rolebtn').forEach(function(b){
+    b.addEventListener('click',function(){setRole(b.dataset.uid,b.dataset.role)});
+  });
 }
 
-// ════════════════════════════════════════════════════════
-// APP MODAL
-// ════════════════════════════════════════════════════════
-let modalCallback=null;
-function showModal(title,sub,placeholder,defaultVal,confirmLabel,callback) {
-  modalCallback=callback;
-  document.getElementById('modal-title').textContent=title;
-  document.getElementById('modal-sub').textContent=sub;
-  const inp=document.getElementById('modal-input');
-  inp.placeholder=placeholder; inp.value=defaultVal;
-  document.getElementById('modal-confirm').textContent=confirmLabel;
-  document.getElementById('modal-backdrop').classList.add('show');
-  setTimeout(()=>{inp.focus();inp.select();},280);
-}
-function closeModal() { document.getElementById('modal-backdrop').classList.remove('show'); modalCallback=null; }
-function confirmModal() { const val=document.getElementById('modal-input').value.trim(); if(!val){document.getElementById('modal-input').focus();return;} closeModal(); if(modalCallback) modalCallback(val); }
-function handleModalBackdropClick(e) { if(e.target===document.getElementById('modal-backdrop')) closeModal(); }
-document.getElementById('modal-input').addEventListener('keydown',e=>{ if(e.key==='Enter') confirmModal(); if(e.key==='Escape') closeModal(); });
-document.getElementById('modal-confirm').addEventListener('click', confirmModal);
-
-// ════════════════════════════════════════════════════════
-// TAP BUBBLES / PAGE NAV / TOAST
-// ════════════════════════════════════════════════════════
-function updateTapBubbles() {
-  const label=TIME_SYSTEMS[settings.system]?.tapLabel||'';
-  document.getElementById('tap-system-1').textContent=label;
-  document.getElementById('tap-system-2').textContent=label;
-}
-function showSettings() { if(state.phase==='running') togglePause(); document.getElementById('clock-page').classList.add('hidden'); document.getElementById('settings-page').classList.remove('hidden'); loadSettingsUI(); renderPresets(); }
-function showClock()    { document.getElementById('settings-page').classList.add('hidden'); document.getElementById('clock-page').classList.remove('hidden'); }
-let toastTimer;
-function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2400); }
-
-// ════════════════════════════════════════════════════════
-// EVENTS
-// ════════════════════════════════════════════════════════
-['p1-half','p2-half'].forEach(id=>{
-  const el=document.getElementById(id), pid=id==='p1-half'?1:2;
-  el.addEventListener('touchstart',e=>{e.preventDefault();switchTurn(pid);},{passive:false});
-  let suppress=false;
-  el.addEventListener('touchend',()=>{suppress=true;setTimeout(()=>suppress=false,500);},{passive:true});
-  el.addEventListener('click',e=>{if(suppress){e.stopImmediatePropagation();return;}switchTurn(pid);},true);
+// ─────────────────────────────────────────────
+// EVENT WIRING
+// ─────────────────────────────────────────────
+// Clock halves
+[['h1',1],['h2',2]].forEach(function(pair){
+  var el=gel(pair[0]),pid=pair[1],sup=false;
+  el.addEventListener('touchstart',function(e){e.preventDefault();switchTurn(pid)},{passive:false});
+  el.addEventListener('touchend',function(){sup=true;setTimeout(function(){sup=false},500)},{passive:true});
+  el.addEventListener('click',function(e){if(sup){e.stopImmediatePropagation();return}switchTurn(pid)},true);
 });
-document.addEventListener('touchmove',e=>{
-  if(!document.getElementById('settings-page').classList.contains('hidden')) return;
-  e.preventDefault();
-},{passive:false});
-document.addEventListener('click',e=>{ if(dropdownOpen&&!document.getElementById('ts-wrap').contains(e.target)) closeDropdown(); });
-document.addEventListener('keydown',e=>{
-  if(!document.getElementById('settings-page').classList.contains('hidden')) return;
-  if(document.getElementById('modal-backdrop').classList.contains('show')) return;
-  if(e.code==='Space'||e.code==='Enter'){e.preventDefault();if(state.active!==null)switchTurn(state.active);else switchTurn(2);}
-  if(e.code==='KeyP') togglePause();
-  if(e.code==='KeyR') resetGame();
+// Buttons
+gel('btnR').addEventListener('click',resetGame);
+gel('btnP').addEventListener('click',togglePause);
+gel('btnS').addEventListener('click',showSettings);
+gel('btnBk').addEventListener('click',showClock);
+gel('btnPl').addEventListener('click',applyAndPlay);
+gel('btnAP').addEventListener('click',savePreset);
+gel('btnER').addEventListener('click',resetGame);
+gel('lStk').addEventListener('click',function(){setLayout('stacked')});
+gel('lSbs').addEventListener('click',function(){setLayout('side')});
+gel('rtogBtn').addEventListener('click',toggleRemote);
+gel('rsoBtn').addEventListener('click',toggleSO);
+gel('rlvBtn').addEventListener('click',confirmLeave);
+gel('cstrig').addEventListener('click',toggleDD);
+// Modal
+gel('mcan').addEventListener('click',closeModal);
+gel('mok').addEventListener('click',confirmModal);
+gel('mback').addEventListener('click',function(e){if(e.target===gel('mback'))closeModal()});
+gel('minp').addEventListener('keydown',function(e){if(e.key==='Enter')confirmModal();if(e.key==='Escape')closeModal()});
+// Global
+document.addEventListener('click',function(e){if(ddOpen&&!gel('cswrap').contains(e.target))closeDD()});
+document.addEventListener('touchmove',function(e){if(!gel('sp').classList.contains('hidden'))return;e.preventDefault()},{passive:false});
+document.addEventListener('keydown',function(e){
+  if(!gel('sp').classList.contains('hidden'))return;
+  if(gel('mback').classList.contains('on'))return;
+  if(e.code==='Space'||e.code==='Enter'){e.preventDefault();if(gs.active!==null)switchTurn(gs.active);else switchTurn(2)}
+  if(e.code==='KeyP')togglePause();
+  if(e.code==='KeyR')resetGame();
 });
 
-// Expose a handful of functions called from inline onclick
-window.resetGame=resetGame; window.togglePause=togglePause; window.showSettings=showSettings;
-window.showClock=showClock; window.setLayout=setLayout; window.toggleDropdown=toggleDropdown;
-window.applyAndPlay=applyAndPlay; window.saveCurrentAsPreset=saveCurrentAsPreset;
-window.deletePreset=deletePreset; window.closeModal=closeModal;
-window.handleModalBackdropClick=handleModalBackdropClick;
-window.startHosting=startHosting; window.joinRoom=joinRoom; window.leaveRoom=leaveRoom; window.copyCode=copyCode; window.setAttendeeRole=setAttendeeRole;
-
-// ════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────
 // INIT
-// ════════════════════════════════════════════════════════
-applyLayout(currentLayout);
-initPlayers();
-updateDisplay(1); updateDisplay(2);
-updateHalfClasses(); updateTapBubbles(); updateMoveCounter();
-updateRemoteUI();
+// ─────────────────────────────────────────────
+applyLayout(curLayout);
+initP();
+updDisplay(1);updDisplay(2);
+updHalves();updTapLbls();updMVC();updRBar();
 </script>
+
+<script>
+// Firebase initialisation (separate plain script — runs after app is ready)
+(function(){
+  try{
+    var app = firebase.initializeApp({
+      apiKey:"AIzaSyD7rNFmIFEZn0rK5SA9KjuZsaR5czF06XY",
+      authDomain:"go-clock-7d527.firebaseapp.com",
+      projectId:"go-clock-7d527",
+      storageBucket:"go-clock-7d527.firebasestorage.app",
+      messagingSenderId:"198198206793",
+      appId:"1:198198206473:web:19da2bfc650009742e18d8"
+    });
+    var db = firebase.firestore(app);
+    var fsLib = firebase.firestore;
+    FB.db = db;
+    FB.setDoc   = function(ref,data){ return ref.set(data) };
+    FB.updateDoc= function(ref,data){ return ref.update(data) };
+    FB.doc      = function(db){ var args=Array.prototype.slice.call(arguments,1); return args.reduce(function(r,s,i){return i%2===0?r.collection(s):r.doc(s)},db) };
+    FB.col      = function(db){ var args=Array.prototype.slice.call(arguments,1); return args.reduce(function(r,s,i){return i%2===0?r.collection(s):r.doc(s)},db) };
+    FB.onSnapshot = function(ref,cb){ return ref.onSnapshot(cb) };
+    FB.ready = true;
+    console.log('Firebase ready');
+  }catch(e){console.warn('Firebase init failed',e)}
+})();
+</script>
+
 </body>
 </html>
