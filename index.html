@@ -6,16 +6,18 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" id="tcMeta" content="#0a0a0a">
+<meta name="theme-color" content="#0a0a0a">
 <title>Go Clock</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="favicon.png">
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Sans:wght@300;400;500;600&family=Noto+Serif+JP:wght@300;400;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 /* ╔══════════════════════════════════════════════════════╗
-   ║  CSS CUSTOM PROPERTIES — swapped per theme           ║
+   ║  CSS CUSTOM PROPERTIES                               ║
    ╚══════════════════════════════════════════════════════╝ */
 :root {
-  /* ── Obsidian (default) ── */
   --bg:        #0a0a0a;
   --bg2:       #141414;
   --fg:        #f5f0e8;
@@ -31,78 +33,9 @@
   --glow:      rgba(245,240,232,.20);
   --tap-c:     #f5f0e8;
   --cbar:      #0a0a0a;
-  --font-d:    'DM Mono', monospace;
-  --font-ui:   'DM Sans', sans-serif;
-  --font-lbl:  'DM Sans', sans-serif;
   --r:         24px;
   --bh:        64px;
   --ease:      cubic-bezier(.34,1.56,.64,1);
-}
-
-/* ── Kaya (warm wood / Japanese) ─────────────────────── */
-body.t-kaya {
-  --bg:        #1e1509;
-  --bg2:       #2a1e0d;
-  --fg:        #f0e2c0;
-  --fg2:       #9a7a50;
-  --acc:       #c8863a;
-  --acc-glow:  rgba(200,134,58,.2);
-  --red:       #b83028;
-  --border:    rgba(240,226,192,.09);
-  --border2:   rgba(240,226,192,.2);
-  --half-off:  #1e1509;
-  --half-on:   #e8d4a0;
-  --half-on-c: #1a1008;
-  --glow:      rgba(200,160,80,.28);
-  --tap-c:     #f0e2c0;
-  --cbar:      #160f06;
-  --font-d:    'Noto Serif JP', serif;
-  --font-ui:   'DM Sans', sans-serif;
-  --font-lbl:  'Noto Serif JP', serif;
-}
-
-/* ── Cypher (techy / terminal) ───────────────────────── */
-body.t-cypher {
-  --bg:        #000000;
-  --bg2:       #080808;
-  --fg:        #00e87a;
-  --fg2:       #007a40;
-  --acc:       #00e87a;
-  --acc-glow:  rgba(0,232,122,.15);
-  --red:       #ff2244;
-  --border:    rgba(0,232,122,.1);
-  --border2:   rgba(0,232,122,.22);
-  --half-off:  #000000;
-  --half-on:   #001508;
-  --half-on-c: #00e87a;
-  --glow:      rgba(0,232,122,.25);
-  --tap-c:     #00e87a;
-  --cbar:      #000000;
-  --font-d:    'Share Tech Mono', monospace;
-  --font-ui:   'Share Tech Mono', monospace;
-  --font-lbl:  'Share Tech Mono', monospace;
-}
-
-/* ── Aether (ethereal / cosmic) ─────────────────────── */
-body.t-aether {
-  --bg:        #07051a;
-  --bg2:       #0e0a28;
-  --fg:        #ddd4ff;
-  --fg2:       #7a68cc;
-  --acc:       #b48aff;
-  --acc-glow:  rgba(180,138,255,.18);
-  --red:       #ff5577;
-  --border:    rgba(180,138,255,.1);
-  --border2:   rgba(180,138,255,.22);
-  --half-off:  #07051a;
-  --half-on:   #1a1040;
-  --half-on-c: #ddd4ff;
-  --glow:      rgba(150,100,255,.28);
-  --tap-c:     #c8b8ff;
-  --cbar:      #050414;
-  --font-d:    'DM Mono', monospace;
-  --font-ui:   'DM Sans', sans-serif;
-  --font-lbl:  'DM Sans', sans-serif;
 }
 
 /* ╔══════════════════════════════════════════════════════╗
@@ -112,11 +45,10 @@ body.t-aether {
 html { -webkit-text-size-adjust:100% }
 html, body {
   height:100%; height:100dvh; overflow:hidden;
-  font-family:var(--font-ui);
+  font-family:'DM Sans', sans-serif;
   background:var(--bg); color:var(--fg);
   user-select:none; -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
-  transition:background .55s, color .4s;
 }
 
 /* ── pages ─────────────────────────────────────────── */
@@ -176,31 +108,25 @@ html, body {
 .plbl {
   font-size:clamp(9px,1.8vw,11px); font-weight:600;
   letter-spacing:.32em; text-transform:uppercase; opacity:.42;
-  font-family:var(--font-lbl);
+  font-family:'DM Sans',sans-serif;
 }
 
 /* time display */
 .trow { display:flex; align-items:baseline; gap:4px; line-height:1 }
 .td {
-  font-family:var(--font-d); font-size:clamp(50px,17vmin,106px);
+  font-family:'DM Mono',monospace; font-size:clamp(50px,17vmin,106px);
   font-weight:300; letter-spacing:-.03em; transition:color .2s, transform .15s;
 }
 .ms {
-  font-family:var(--font-d); font-size:clamp(21px,7vmin,44px);
+  font-family:'DM Mono',monospace; font-size:clamp(21px,7vmin,44px);
   font-weight:300; letter-spacing:-.02em; opacity:.68;
   transition:color .2s, opacity .15s; min-width:2ch;
 }
 .td.pulse { animation:tp .07s ease }
 @keyframes tp { 0%{transform:scale(1)} 50%{transform:scale(.963)} 100%{transform:scale(1)} }
 
-/* cypher: glow on digits */
-body.t-cypher .td, body.t-cypher .ms { text-shadow:0 0 18px var(--fg) }
-body.t-cypher .half.act .td, body.t-cypher .half.act .ms { text-shadow:0 0 28px var(--fg), 0 0 60px var(--acc) }
-/* aether: soft purple bloom */
-body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4) }
-
 .sinfo {
-  font-family:var(--font-d); font-size:clamp(11px,2.4vw,13px);
+  font-family:'DM Mono',monospace; font-size:clamp(11px,2.4vw,13px);
   letter-spacing:.05em; opacity:.48;
   display:flex; align-items:center; gap:8px; min-height:17px;
   flex-wrap:wrap; justify-content:center;
@@ -220,7 +146,7 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
   border-radius:100px; padding:7px 16px; font-size:clamp(9px,2vw,11px);
   font-weight:500; letter-spacing:.18em; text-transform:uppercase;
   color:var(--tap-c); animation:tf 1.9s ease-in-out infinite;
-  font-family:var(--font-lbl);
+  font-family:'DM Sans',sans-serif;
 }
 .tapb.s2 { font-size:clamp(8px,1.8vw,10px); letter-spacing:.12em; animation-delay:.42s; opacity:.8 }
 @keyframes tf { 0%,100%{opacity:.26;transform:translateY(2px)} 50%{opacity:.8;transform:translateY(0)} }
@@ -240,7 +166,7 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 }
 @media(max-width:380px){.logo{display:none}}
 .mvctr {
-  font-family:var(--font-d); font-size:11px; letter-spacing:.1em;
+  font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.1em;
   text-transform:uppercase; white-space:nowrap;
   color:var(--fg); opacity:.65;
   background:var(--border); border:1px solid var(--border2);
@@ -250,7 +176,7 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 .mvctr span { font-weight:500; opacity:1 }
 .cb {
   background:transparent; border:1px solid var(--border2); color:var(--fg);
-  font-family:var(--font-ui); font-size:clamp(11px,2.4vw,12px);
+  font-family:'DM Sans',sans-serif; font-size:clamp(11px,2.4vw,12px);
   font-weight:500; letter-spacing:.1em; text-transform:uppercase;
   min-height:42px; padding:0 clamp(12px,3.5vw,20px); border-radius:100px;
   cursor:pointer; transition:all .18s; white-space:nowrap;
@@ -311,7 +237,7 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 }
 .expsub { font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:rgba(255,255,255,.55); text-align:center; margin-bottom:6px }
 .expbtn {
-  background:white; color:var(--red); border:none; font-family:var(--font-ui);
+  background:white; color:var(--red); border:none; font-family:'DM Sans',sans-serif;
   font-size:13px; font-weight:600; letter-spacing:.12em; text-transform:uppercase;
   padding:16px 38px; border-radius:100px; cursor:pointer; min-height:52px;
   transition:transform .18s; -webkit-appearance:none; appearance:none;
@@ -325,7 +251,7 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
   background:var(--fg); color:var(--bg); font-size:13px; font-weight:500;
   padding:11px 22px; border-radius:100px; z-index:600;
   transition:transform .38s var(--ease); white-space:nowrap;
-  max-width:calc(100vw - 40px); text-align:center; font-family:var(--font-ui);
+  max-width:calc(100vw - 40px); text-align:center; font-family:'DM Sans',sans-serif;
 }
 .toast.on { transform:translateX(-50%) translateY(0) }
 
@@ -340,10 +266,10 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
   display:flex; align-items:flex-end; justify-content:space-between; gap:12px;
 }
 .stit { font-family:'Playfair Display', serif; font-size:clamp(22px,6vw,36px); font-weight:900; letter-spacing:-.02em }
-.ssub { font-size:10px; letter-spacing:.22em; text-transform:uppercase; opacity:.28; margin-top:4px; font-family:var(--font-ui) }
+.ssub { font-size:10px; letter-spacing:.22em; text-transform:uppercase; opacity:.28; margin-top:4px; font-family:'DM Sans',sans-serif }
 .backbtn {
   background:transparent; border:1px solid var(--border2); color:var(--fg);
-  font-family:var(--font-ui); font-size:12px; letter-spacing:.1em; text-transform:uppercase;
+  font-family:'DM Sans',sans-serif; font-size:12px; letter-spacing:.1em; text-transform:uppercase;
   padding:0 18px; border-radius:100px; cursor:pointer; transition:background .18s;
   flex-shrink:0; min-height:42px; display:flex; align-items:center;
   -webkit-appearance:none; appearance:none;
@@ -352,27 +278,9 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 .sbody { padding:22px 20px max(64px,env(safe-area-inset-bottom,64px)); max-width:580px; margin:0 auto }
 .sl {
   font-size:10px; letter-spacing:.26em; text-transform:uppercase;
-  opacity:.32; margin-bottom:10px; margin-top:30px; font-weight:600; font-family:var(--font-ui);
+  opacity:.32; margin-bottom:10px; margin-top:30px; font-weight:600; font-family:'DM Sans',sans-serif;
 }
 .sl:first-child { margin-top:0 }
-
-/* ── theme picker ─────────────────────────────────── */
-.theme-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px }
-.thcard {
-  border-radius:16px; overflow:hidden; cursor:pointer;
-  border:2px solid transparent; transition:border-color .22s, transform .15s, box-shadow .22s;
-  -webkit-appearance:none; appearance:none; padding:0; background:none; text-align:left;
-}
-.thcard:active { transform:scale(.95) }
-.thcard.sel { border-color:var(--acc); box-shadow:0 0 0 3px var(--acc-glow) }
-.th-swatch { height:56px; display:flex }
-.th-a { flex:1 } .th-b { flex:1 }
-.th-name {
-  background:var(--bg2); padding:7px 8px 8px; font-family:var(--font-ui);
-  font-size:10px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
-  color:var(--fg); opacity:.48; text-align:center;
-}
-.thcard.sel .th-name { opacity:1; color:var(--acc) }
 
 /* ── layout picker ────────────────────────────────── */
 .laytog { display:flex; gap:8px }
@@ -380,7 +288,7 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
   flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:7px; background:var(--border); border:1px solid var(--border2);
   border-radius:14px; padding:14px 10px; cursor:pointer; min-height:72px;
-  color:var(--fg); font-family:var(--font-ui); font-size:11px;
+  color:var(--fg); font-family:'DM Sans',sans-serif; font-size:11px;
   letter-spacing:.1em; text-transform:uppercase; opacity:.42; transition:all .18s;
   -webkit-appearance:none; appearance:none;
 }
@@ -399,8 +307,8 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 .cstrig:active { opacity:.75 }
 .cstrig.open { border-color:var(--acc); border-radius:14px 14px 0 0; border-bottom-color:transparent }
 .csl { display:flex; flex-direction:column; gap:3px; flex:1; min-width:0 }
-.csv { font-size:clamp(13px,3.5vw,15px); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:var(--font-ui) }
-.csd { font-size:clamp(10px,2.4vw,11px); opacity:.36; font-family:var(--font-d); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.csv { font-size:clamp(13px,3.5vw,15px); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:'DM Sans',sans-serif }
+.csd { font-size:clamp(10px,2.4vw,11px); opacity:.36; font-family:'DM Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .csar { width:26px; height:26px; border-radius:50%; border:1px solid var(--border2); display:flex; align-items:center; justify-content:center; font-size:10px; opacity:.45; flex-shrink:0; transition:transform .3s var(--ease) }
 .cstrig.open .csar { transform:rotate(180deg); opacity:.75 }
 .cspan {
@@ -422,8 +330,8 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 .csico { width:36px; height:36px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; background:var(--border); border:1px solid var(--border2) }
 .csopt.sel .csico { border-color:var(--acc) }
 .cstxt { flex:1; min-width:0 }
-.csnm { font-size:clamp(13px,3.4vw,14px); font-weight:500; font-family:var(--font-ui) }
-.csht { font-size:clamp(10px,2.4vw,11px); opacity:.33; font-family:var(--font-d); margin-top:2px }
+.csnm { font-size:clamp(13px,3.4vw,14px); font-weight:500; font-family:'DM Sans',sans-serif }
+.csht { font-size:clamp(10px,2.4vw,11px); opacity:.33; font-family:'DM Mono',monospace; margin-top:2px }
 .csopt.sel .csnm { color:var(--acc) }
 .csck { font-size:13px; color:var(--acc); opacity:0; transition:opacity .18s; flex-shrink:0 }
 .csopt.sel .csck { opacity:1 }
@@ -431,12 +339,12 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 /* ── time fields ──────────────────────────────────── */
 .trow2 { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 0; border-bottom:1px solid var(--border); flex-wrap:nowrap }
 .trlhs { flex:1; min-width:0 }
-.trlbl { font-size:clamp(13px,3.4vw,14px); font-weight:400; opacity:.84; font-family:var(--font-ui) }
-.trsub { font-size:clamp(10px,2.4vw,11px); opacity:.28; margin-top:2px; font-family:var(--font-d); line-height:1.4 }
+.trlbl { font-size:clamp(13px,3.4vw,14px); font-weight:400; opacity:.84; font-family:'DM Sans',sans-serif }
+.trsub { font-size:clamp(10px,2.4vw,11px); opacity:.28; margin-top:2px; font-family:'DM Mono',monospace; line-height:1.4 }
 .tig { display:flex; align-items:center; gap:5px; flex-shrink:0 }
 .tin, .cin {
   background:var(--border); border:1px solid var(--border2); color:var(--fg);
-  font-family:var(--font-d); font-size:max(16px,1em); font-weight:300;
+  font-family:'DM Mono',monospace; font-size:max(16px,1em); font-weight:300;
   width:54px; min-height:46px; text-align:center; padding:0 4px; border-radius:12px;
   outline:none; transition:border-color .18s; -moz-appearance:textfield;
   -webkit-appearance:none; appearance:none;
@@ -444,12 +352,12 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 .tin::-webkit-inner-spin-button,.tin::-webkit-outer-spin-button,
 .cin::-webkit-inner-spin-button,.cin::-webkit-outer-spin-button{-webkit-appearance:none}
 .tin:focus,.cin:focus { border-color:var(--acc) }
-.tcol { opacity:.24; font-family:var(--font-d); font-size:17px; flex-shrink:0 }
-.tunit { margin-left:5px; font-size:11px; opacity:.26; white-space:nowrap; flex-shrink:0; font-family:var(--font-ui) }
+.tcol { opacity:.24; font-family:'DM Mono',monospace; font-size:17px; flex-shrink:0 }
+.tunit { margin-left:5px; font-size:11px; opacity:.26; white-space:nowrap; flex-shrink:0; font-family:'DM Sans',sans-serif }
 
 /* ── rules ────────────────────────────────────────── */
 .rulebox { background:var(--border); border:1px solid var(--border2); border-radius:14px; padding:15px 17px; margin-top:10px }
-.rulebox p { font-size:clamp(12px,3vw,13px); line-height:1.78; opacity:.55; font-family:var(--font-ui) }
+.rulebox p { font-size:clamp(12px,3vw,13px); line-height:1.78; opacity:.55; font-family:'DM Sans',sans-serif }
 .rulebox strong { color:var(--acc); font-weight:500 }
 
 /* ── presets ──────────────────────────────────────── */
@@ -462,9 +370,9 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 }
 .pcard:active { opacity:.7 }
 .pcard.sel { border-color:var(--acc) }
-.pnm { font-size:clamp(12px,3vw,13px); font-weight:500; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:20px; font-family:var(--font-ui) }
-.psy { font-size:9px; opacity:.34; letter-spacing:.1em; text-transform:uppercase; margin-bottom:3px; font-family:var(--font-ui) }
-.pde { font-family:var(--font-d); font-size:10px; opacity:.32; line-height:1.5 }
+.pnm { font-size:clamp(12px,3vw,13px); font-weight:500; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:20px; font-family:'DM Sans',sans-serif }
+.psy { font-size:9px; opacity:.34; letter-spacing:.1em; text-transform:uppercase; margin-bottom:3px; font-family:'DM Sans',sans-serif }
+.pde { font-family:'DM Mono',monospace; font-size:10px; opacity:.32; line-height:1.5 }
 .pdel {
   position:absolute; top:7px; right:7px; background:rgba(224,90,78,.1); border:none;
   color:var(--red); cursor:pointer; font-size:11px; width:22px; height:22px;
@@ -480,7 +388,7 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
   border-radius:14px; padding:15px; cursor:pointer; transition:opacity .18s, border-color .18s;
   color:var(--fg); opacity:.32; font-size:13px;
   display:flex; align-items:center; justify-content:center; gap:8px;
-  font-family:var(--font-ui); width:100%; min-height:50px;
+  font-family:'DM Sans',sans-serif; width:100%; min-height:50px;
   -webkit-appearance:none; appearance:none; letter-spacing:.04em;
 }
 .addpbtn:active { opacity:.8 }
@@ -490,7 +398,7 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 .plbar { display:flex; gap:10px; margin-top:26px; padding-top:22px; border-top:1px solid var(--border) }
 .playbtn {
   flex:1; background:var(--acc); color:var(--bg); border:none;
-  font-family:var(--font-ui); font-size:14px; font-weight:700;
+  font-family:'DM Sans',sans-serif; font-size:14px; font-weight:700;
   letter-spacing:.14em; text-transform:uppercase; padding:0 24px;
   border-radius:100px; cursor:pointer; transition:all .18s; min-height:52px;
   -webkit-appearance:none; appearance:none;
@@ -513,10 +421,10 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 }
 .mback.on .mbox { transform:scale(1) translateY(0) }
 .mtit { font-family:'Playfair Display', serif; font-size:20px; font-weight:700; margin-bottom:4px }
-.msub { font-size:12px; opacity:.34; font-family:var(--font-d); margin-bottom:18px; line-height:1.55 }
+.msub { font-size:12px; opacity:.34; font-family:'DM Mono',monospace; margin-bottom:18px; line-height:1.55 }
 .minp {
   width:100%; background:var(--border); border:1px solid var(--border2); color:var(--fg);
-  font-family:var(--font-ui); font-size:max(16px,1em);
+  font-family:'DM Sans',sans-serif; font-size:max(16px,1em);
   padding:13px 15px; border-radius:12px; outline:none; transition:border-color .18s;
   -webkit-appearance:none; appearance:none;
 }
@@ -524,14 +432,14 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
 .macts { display:flex; gap:9px; margin-top:14px }
 .mcan {
   flex:1; background:var(--border); border:1px solid var(--border2); color:var(--fg);
-  font-family:var(--font-ui); font-size:13px; font-weight:500; letter-spacing:.08em;
+  font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; letter-spacing:.08em;
   text-transform:uppercase; padding:0 14px; border-radius:100px; cursor:pointer;
   min-height:46px; transition:opacity .18s; -webkit-appearance:none; appearance:none;
 }
 .mcan:active { opacity:.6 }
 .mok {
   flex:2; background:var(--acc); color:var(--bg); border:none;
-  font-family:var(--font-ui); font-size:13px; font-weight:700; letter-spacing:.08em;
+  font-family:'DM Sans',sans-serif; font-size:13px; font-weight:700; letter-spacing:.08em;
   text-transform:uppercase; padding:0 14px; border-radius:100px; cursor:pointer;
   min-height:46px; transition:all .18s; -webkit-appearance:none; appearance:none;
 }
@@ -608,9 +516,6 @@ body.t-aether .td, body.t-aether .ms { text-shadow:0 0 30px rgba(180,138,255,.4)
     <button class="backbtn" id="btnBk">← Back</button>
   </div>
   <div class="sbody">
-
-    <div class="sl">Theme</div>
-    <div class="theme-grid" id="themeGrid"></div>
 
     <div class="sl">Saved Presets</div>
     <div class="pgrid" id="pgrid"></div>
@@ -779,46 +684,6 @@ document.addEventListener('visibilitychange', function(){
     WL.acquire();
   }
 });
-
-/* ═══════════════════════════════════════════════════
-   THEMES
-═══════════════════════════════════════════════════ */
-var THEMES = [
-  { id:'obsidian', name:'Obsidian', a:'#0a0a0a', b:'#f5f0e8', meta:'#0a0a0a' },
-  { id:'kaya',     name:'Kaya',     a:'#1e1509', b:'#e8d4a0', meta:'#1e1509' },
-  { id:'cypher',   name:'Cypher',   a:'#000000', b:'#00e87a', meta:'#000000' },
-  { id:'aether',   name:'Aether',   a:'#07051a', b:'#b48aff', meta:'#07051a' }
-];
-
-var curTheme = localStorage.getItem('gc5_theme') || 'obsidian';
-
-function applyTheme(id){
-  curTheme = id;
-  localStorage.setItem('gc5_theme', id);
-  document.body.className = document.body.className.replace(/\bt-\S+/g,'').trim();
-  if(id !== 'obsidian') document.body.classList.add('t-' + id);
-  var t = THEMES.find(function(x){ return x.id===id }) || THEMES[0];
-  document.getElementById('tcMeta').setAttribute('content', t.meta);
-  document.querySelectorAll('.thcard').forEach(function(c){
-    c.classList.toggle('sel', c.dataset.tid === id);
-  });
-}
-
-function buildThemeGrid(){
-  var g = document.getElementById('themeGrid');
-  g.innerHTML = '';
-  THEMES.forEach(function(t){
-    var btn = document.createElement('button');
-    btn.className = 'thcard' + (t.id===curTheme?' sel':'');
-    btn.dataset.tid = t.id;
-    btn.innerHTML = '<div class="th-swatch">'
-      + '<div class="th-a" style="background:'+t.a+'"></div>'
-      + '<div class="th-b" style="background:'+t.b+'"></div>'
-      + '</div><div class="th-name">'+t.name+'</div>';
-    btn.addEventListener('click', function(){ applyTheme(t.id); });
-    g.appendChild(btn);
-  });
-}
 
 /* ═══════════════════════════════════════════════════
    TIME SYSTEMS
@@ -1210,8 +1075,6 @@ function loadSUI(){
   curSys=cfg.system; var sys=SYS[curSys];
   gel('csv').textContent=sys.name; gel('csd').textContent=sys.sd; gel('ssub').textContent=sys.name;
   buildDD(); buildTF(curSys); buildRules(curSys);
-  gel('lStk').classList.toggle('sel',curLayout==='stacked'); gel('lSbs').classList.toggle('sel',curLayout==='side');
-  buildThemeGrid();
 }
 function applyAndPlay(){ var s=readTF(); saveSettings(s); resetGame(); showClock() }
 function showSettings(){
@@ -1315,7 +1178,6 @@ document.addEventListener('keydown',function(e){
 /* ═══════════════════════════════════════════════════
    INIT
 ═══════════════════════════════════════════════════ */
-applyTheme(curTheme);
 applyLayout(curLayout);
 initP();
 updDisplay(1); updDisplay(2);
