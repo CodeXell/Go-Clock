@@ -21,15 +21,25 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
-html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-serif;
-  background:var(--bg);color:var(--fg);user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-
+html,body{
+  height:100%;height:100dvh;
+  min-height:-webkit-fill-available;
+  overflow:hidden;font-family:'DM Sans',sans-serif;
+  background:var(--bg);color:var(--fg);user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation
+}
 .page{position:fixed;inset:0;display:flex;flex-direction:column;transition:opacity .28s ease,transform .28s ease}
 .page.hidden{opacity:0;pointer-events:none;transform:translateY(14px)}
 
-/* ── CLOCK PAGE ─────────────────────────────── */
-#cp{flex-direction:column}
-#cp.fs .cbar{opacity:0;pointer-events:none;height:0;border:none;min-height:0;overflow:hidden}
+/* ── CLOCK PAGE — fills every pixel of the viewport ── */
+#cp{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:env(safe-area-inset-left,0px);
+  padding-right:env(safe-area-inset-right,0px);
+}
+#cp.fs .cbar{opacity:0;pointer-events:none;height:0!important;border:none;min-height:0;overflow:hidden;padding:0}
 #cp.fs .half.top{border-radius:0}
 #cp.fs .half.bot{border-radius:0}
 
@@ -109,6 +119,25 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
 .tapb{background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.22);border-radius:100px;padding:7px 16px;font-size:clamp(9px,2vw,11px);font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--fg);animation:tapf 2s ease-in-out infinite}
 .tapb.s2{font-size:clamp(8px,1.8vw,10px);animation-delay:.45s;opacity:.8}
 @keyframes tapf{0%,100%{opacity:.26;transform:translateY(2px)}50%{opacity:.8;transform:translateY(0)}}
+/* holdhint: shown only when game is running (not in idle tap-to-begin state) */
+.holdhint{
+  font-size:clamp(8px,1.6vw,10px);letter-spacing:.16em;text-transform:uppercase;
+  opacity:0;pointer-events:none;text-align:center;margin-top:6px;
+  transition:opacity .4s ease;
+}
+.half.act .holdhint,.half.off .holdhint,.half.paused .holdhint{opacity:.18}
+/* hold-to-pause progress ring */
+.hold-ring{
+  position:absolute;inset:0;pointer-events:none;z-index:8;
+  border-radius:inherit;
+  box-shadow:inset 0 0 0 3px rgba(200,169,110,.0);
+  animation:holdRingA 3s linear forwards;
+}
+@keyframes holdRingA{
+  0%  {box-shadow:inset 0 0 0 0 rgba(200,169,110,.0);background:rgba(200,169,110,.00)}
+  60% {box-shadow:inset 0 0 0 2px rgba(200,169,110,.3);background:rgba(200,169,110,.04)}
+  100%{box-shadow:inset 0 0 0 3px rgba(200,169,110,.7);background:rgba(200,169,110,.10)}
+}
 .rip{position:absolute;border-radius:50%;background:currentColor;opacity:.12;transform:scale(0);animation:ripA .65s ease-out forwards;pointer-events:none;z-index:5}
 @keyframes ripA{to{transform:scale(6);opacity:0}}
 
@@ -143,7 +172,6 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
 }
 
 /* ── END SCREEN ─────────────────────────────── */
-/* Replace the old single expov with split halves */
 #endScreen{
   position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;
   opacity:0;pointer-events:none;transition:opacity .45s ease;
@@ -152,50 +180,52 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
 
 .end-half{
   flex:1;position:relative;overflow:hidden;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  display:flex;align-items:center;justify-content:center;
   transition:background .5s ease;
 }
-.end-top{background:#1a3a28}   /* winner (black) — green dark */
-.end-bot{background:#3a1212}   /* loser (white) — red dark */
-/* when white wins, flip */
-.end-top.loser{background:#3a1212}
-.end-bot.winner{background:#1a3a28}
-
-/* divider line with Play Again button */
-.end-divider{
-  position:relative;height:1px;background:rgba(255,255,255,.14);flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;z-index:10;
+/* inner content wrapper — allows rotation without clipping the half */
+.end-inner{
+  position:relative;z-index:6;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;padding:20px;text-align:center;
+  /* top half (player 1) faces UP toward that player — rotated 180° */
 }
-.end-divider::before,.end-divider::after{
-  content:'';position:absolute;left:0;right:0;top:0;height:1px;background:rgba(255,255,255,.1);
+.end-top .end-inner{transform:rotate(180deg)}
+.end-bot .end-inner{transform:none}
+
+/* divider */
+.end-divider{
+  position:relative;height:1px;background:rgba(255,255,255,.18);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;z-index:210;overflow:visible;
 }
 .play-again-btn{
-  position:relative;background:var(--bg);color:var(--fg);border:1px solid rgba(255,255,255,.22);
+  position:relative;background:var(--bg);color:var(--fg);border:1px solid rgba(255,255,255,.28);
   font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
   padding:12px 32px;border-radius:100px;cursor:pointer;white-space:nowrap;
   transition:all .18s;-webkit-appearance:none;appearance:none;
-  box-shadow:0 2px 24px rgba(0,0,0,.5);
+  box-shadow:0 2px 28px rgba(0,0,0,.6);
 }
-.play-again-btn:active{transform:scale(.96);filter:brightness(.85)}
+.play-again-btn:active{transform:scale(.95)}
 @media(hover:hover){.play-again-btn:hover{background:var(--fg);color:var(--bg)}}
 
-/* winner content */
+/* text content */
 .end-label{font-size:clamp(9px,2vw,11px);font-weight:700;letter-spacing:.32em;text-transform:uppercase;opacity:.5}
-.end-title{font-family:'Playfair Display',serif;font-size:clamp(36px,12vw,80px);font-weight:900;letter-spacing:-.02em;text-align:center;line-height:1}
-.end-sub{font-size:clamp(12px,3vw,14px);opacity:.55;text-align:center;letter-spacing:.06em}
+.end-title{font-family:'Playfair Display',serif;font-size:clamp(36px,10vh,76px);font-weight:900;letter-spacing:-.02em;line-height:1}
+.end-sub{font-size:clamp(12px,3vw,14px);opacity:.55;letter-spacing:.05em}
 .end-half.winner .end-title{color:#7fffb2}
-.end-half.loser  .end-title{color:#ff8888}
+.end-half.loser  .end-title{color:#ff9999}
 
-/* confetti canvas */
-#confettiCanvas{position:absolute;inset:0;pointer-events:none;z-index:5}
+/* ── CONFETTI (canvas, covers full half) ─────── */
+.conf-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
 
-/* ── RAIN ANIMATION ──────────────────────────── */
+/* ── RAIN ────────────────────────────────────── */
 .rain-wrap{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3}
-.raindrop{position:absolute;top:-40px;width:1.5px;border-radius:2px;background:linear-gradient(to bottom,rgba(130,170,220,0),rgba(130,170,220,.7));animation:fall linear infinite}
-@keyframes fall{to{transform:translateY(110vh)}}
-.cloud{position:absolute;top:16%;opacity:.22;animation:cloudDrift 18s ease-in-out infinite alternate}
-@keyframes cloudDrift{0%{transform:translateX(-6px)}100%{transform:translateX(6px)}}
-.cloud svg{width:clamp(60px,22vw,120px);fill:#c0d8f0}
+.raindrop{
+  position:absolute;top:-60px;width:1.5px;border-radius:2px;
+  background:linear-gradient(to bottom,rgba(130,170,220,0),rgba(130,170,220,.75));
+  animation:fall linear infinite;
+}
+@keyframes fall{to{transform:translateY(120vh)}}
 
 /* ── TOAST ───────────────────────────────────── */
 .toast{position:fixed;bottom:max(28px,env(safe-area-inset-bottom,28px));left:50%;transform:translateX(-50%) translateY(80px);background:var(--fg);color:var(--bg);font-size:13px;font-weight:500;padding:11px 22px;border-radius:100px;z-index:600;transition:transform .38s var(--ease);white-space:nowrap;max-width:calc(100vw - 40px);text-align:center}
@@ -294,6 +324,7 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
       </div>
       <div class="bprog" id="pr1" style="display:none"><div class="bfill" id="pf1"></div></div>
       <div class="tapbox" id="th1"><div class="tapb">Tap to Begin</div><div class="tapb s2" id="tl1">Byo-Yomi</div></div>
+      <div class="holdhint">Hold 3s to pause &amp; access controls</div>
     </div>
   </div>
 
@@ -318,18 +349,20 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
       </div>
       <div class="bprog" id="pr2" style="display:none"><div class="bfill" id="pf2"></div></div>
       <div class="tapbox" id="th2"><div class="tapb">Tap to Begin</div><div class="tapb s2" id="tl2">Byo-Yomi</div></div>
+      <div class="holdhint">Hold 3s to pause &amp; access controls</div>
     </div>
   </div>
 </div>
 
 <!-- END SCREEN -->
 <div id="endScreen">
-  <!-- top half = player 1 (Black) -->
+  <!-- top half: faces player sitting at top of device (Black by default) -->
   <div class="end-half end-top" id="endTop">
-    <canvas id="confettiCanvas"></canvas>
-    <div class="end-label" id="endTopLabel">Black</div>
-    <div class="end-title" id="endTopTitle">You Win!</div>
-    <div class="end-sub" id="endTopSub"></div>
+    <div class="end-inner">
+      <div class="end-label" id="endTopLabel">Black</div>
+      <div class="end-title" id="endTopTitle">You Win!</div>
+      <div class="end-sub"   id="endTopSub"></div>
+    </div>
   </div>
 
   <!-- divider with Play Again -->
@@ -337,13 +370,13 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
     <button class="play-again-btn" id="btnPA">▶ Play Again</button>
   </div>
 
-  <!-- bottom half = player 2 (White) -->
+  <!-- bottom half: faces player sitting at bottom of device (White by default) -->
   <div class="end-half end-bot" id="endBot">
-    <div class="rain-wrap" id="rainWrap"></div>
-    <div class="cloud"><svg viewBox="0 0 200 80"><ellipse cx="100" cy="55" rx="80" ry="28"/><ellipse cx="70" cy="45" rx="42" ry="32"/><ellipse cx="130" cy="42" rx="38" ry="30"/><ellipse cx="100" cy="35" rx="50" ry="30"/></svg></div>
-    <div class="end-label" id="endBotLabel">White</div>
-    <div class="end-title" id="endBotTitle">Time Out</div>
-    <div class="end-sub" id="endBotSub"></div>
+    <div class="end-inner">
+      <div class="end-label" id="endBotLabel">White</div>
+      <div class="end-title" id="endBotTitle">Time Out</div>
+      <div class="end-sub"   id="endBotSub"></div>
+    </div>
   </div>
 </div>
 
@@ -520,97 +553,154 @@ function playEndTune(win){
 
 function setDanger(pid,on){gel('h'+pid).classList.toggle('dp',on)}
 
-/* ═══════════════════ CONFETTI ═══════════════════ */
-var confRaf=null;
-function startConfetti(canvas){
-  if(!canvas)return;
-  var ctx=canvas.getContext('2d');
-  canvas.width=canvas.offsetWidth;canvas.height=canvas.offsetHeight;
-  var pieces=[];
-  for(var i=0;i<90;i++){
-    pieces.push({
-      x:Math.random()*canvas.width,y:Math.random()*canvas.height-canvas.height,
-      r:Math.random()*5+3,vx:(Math.random()-.5)*1.5,vy:Math.random()*2.5+1.2,
-      angle:Math.random()*360,spin:(Math.random()-.5)*6,
-      color:['#7fffb2','#ffe066','#82e0ff','#f0a0ff','#ffffff'][Math.floor(Math.random()*5)],
-      wave:Math.random()*2*Math.PI
-    });
+/* ═══════════════════ CONFETTI (continuous) ══════ */
+var confPieces=[], confCanvas=null, confCtx=null, confRaf=null, confRO=null;
+
+function confInit(canvas){
+  confCanvas=canvas;
+  confCtx=canvas.getContext('2d');
+  function resize(){
+    confCanvas.width=confCanvas.offsetWidth||confCanvas.parentElement.offsetWidth||200;
+    confCanvas.height=confCanvas.offsetHeight||confCanvas.parentElement.offsetHeight||300;
   }
-  function frame(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    var still=false;
-    pieces.forEach(function(p){
-      p.wave+=0.04;p.x+=p.vx+Math.sin(p.wave)*0.4;p.y+=p.vy;p.angle+=p.spin;
-      if(p.y<canvas.height+20)still=true;
-      ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.angle*Math.PI/180);
-      ctx.fillStyle=p.color;ctx.globalAlpha=0.88;
-      ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*2.2);
-      ctx.restore();
-    });
-    if(still)confRaf=requestAnimationFrame(frame);
-  }
-  if(confRaf)cancelAnimationFrame(confRaf);
-  confRaf=requestAnimationFrame(frame);
+  resize();
+  if(confRO)confRO.disconnect();
+  confRO=new ResizeObserver(resize);
+  confRO.observe(confCanvas.parentElement);
 }
-function stopConfetti(){if(confRaf){cancelAnimationFrame(confRaf);confRaf=null}var c=gel('confettiCanvas');if(c){var ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height)}}
+
+function confSeed(){
+  confPieces=[];
+  var W=confCanvas.width,H=confCanvas.height;
+  for(var i=0;i<110;i++){
+    confPieces.push({
+      x:Math.random()*W, y:Math.random()*H*1.5-H*0.5,
+      w:Math.random()*6+3, h:Math.random()*10+5,
+      vx:(Math.random()-.5)*0.8, vy:Math.random()*1.8+0.9,
+      angle:Math.random()*360, spin:(Math.random()-.5)*4,
+      wave:Math.random()*Math.PI*2, waveA:Math.random()*0.8+0.3,
+      col:['#7fffb2','#ffe066','#82e0ff','#f0a0ff','#ffffff','#ffb347'][Math.floor(Math.random()*6)]
+    });
+  }
+}
+
+function confFrame(){
+  if(!confCanvas||!confCtx)return;
+  var W=confCanvas.width,H=confCanvas.height;
+  confCtx.clearRect(0,0,W,H);
+  for(var i=0;i<confPieces.length;i++){
+    var p=confPieces[i];
+    p.wave+=0.035; p.x+=p.vx+Math.sin(p.wave)*p.waveA; p.y+=p.vy; p.angle+=p.spin;
+    /* wrap: when off-bottom, reset to top */
+    if(p.y>H+20){ p.y=-20; p.x=Math.random()*W; }
+    confCtx.save();
+    confCtx.translate(p.x,p.y);
+    confCtx.rotate(p.angle*Math.PI/180);
+    confCtx.fillStyle=p.col;
+    confCtx.globalAlpha=0.85;
+    confCtx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+    confCtx.restore();
+  }
+  confRaf=requestAnimationFrame(confFrame);
+}
+
+function startConfetti(half){
+  /* create or reuse a canvas that fills this half */
+  var existing=half.querySelector('.conf-canvas');
+  if(!existing){existing=document.createElement('canvas');existing.className='conf-canvas';half.prepend(existing);}
+  confInit(existing);
+  confSeed();
+  if(confRaf)cancelAnimationFrame(confRaf);
+  confFrame();
+}
+
+function stopConfetti(){
+  if(confRaf){cancelAnimationFrame(confRaf);confRaf=null;}
+  if(confRO){confRO.disconnect();confRO=null;}
+  if(confCanvas){confCtx.clearRect(0,0,confCanvas.width,confCanvas.height);}
+  /* remove canvas from wherever it is */
+  document.querySelectorAll('.conf-canvas').forEach(function(c){c.remove();});
+  confCanvas=null; confCtx=null; confPieces=[];
+}
 
 /* ═══════════════════ RAIN ═══════════════════════ */
 function buildRain(wrap){
   wrap.innerHTML='';
-  for(var i=0;i<55;i++){
+  for(var i=0;i<65;i++){
     var d=document.createElement('div');
     d.className='raindrop';
     var left=Math.random()*105-2;
-    var dur=0.55+Math.random()*0.7;
-    var h=22+Math.random()*28;
-    var delay=Math.random()*2;
-    d.style.cssText='left:'+left+'%;height:'+h+'px;animation-duration:'+dur+'s;animation-delay:-'+delay+'s;opacity:'+(0.3+Math.random()*0.5);
+    var dur=0.45+Math.random()*0.65;
+    var h=18+Math.random()*32;
+    var delay=-(Math.random()*3);
+    d.style.cssText='left:'+left+'%;height:'+h+'px;animation-duration:'+dur+'s;animation-delay:'+delay+'s;opacity:'+(0.28+Math.random()*0.55);
     wrap.appendChild(d);
   }
 }
 
 /* ═══════════════════ END SCREEN ═════════════════ */
+/*
+  pid 1 = Black = occupies .end-top (top of screen, content rotated 180° to face upward)
+  pid 2 = White = occupies .end-bot (bottom of screen, content faces normally downward)
+  winnerPid = the player who WON (the other player ran out of time)
+*/
 function showEnd(winnerPid){
-  var loserPid=winnerPid===1?2:1;
-  var wName=winnerPid===1?'Black':'White';
-  var lName=loserPid===1?'Black':'White';
-  /* Player 1 = top half (endTop), Player 2 = bottom half (endBot) */
-  var topIsWinner=(winnerPid===1);
-  var eTop=gel('endTop'),eBot=gel('endBot');
-  eTop.className='end-half end-top '+(topIsWinner?'winner':'loser');
-  eBot.className='end-half end-bot '+(topIsWinner?'loser':'winner');
-  gel('endTopLabel').textContent=wName+(topIsWinner?' wins':'');
-  gel('endBotLabel').textContent=lName+(topIsWinner?'':' wins');
-  if(topIsWinner){
-    gel('endTopTitle').textContent='You Win!';gel('endTopSub').textContent='Well played, '+wName+'!';
-    gel('endBotTitle').textContent='Time Out';gel('endBotSub').textContent='Better luck next time, '+lName;
-  } else {
-    gel('endTopTitle').textContent='Time Out';gel('endTopSub').textContent='Better luck next time, '+wName;
-    gel('endBotTitle').textContent='You Win!';gel('endBotSub').textContent='Well played, '+lName+'!';
-  }
-  /* colour the halves */
-  eTop.style.background=topIsWinner?'#0f2b1c':'#2b0f0f';
-  eBot.style.background=topIsWinner?'#2b0f0f':'#0f2b1c';
+  var loserPid = winnerPid===1 ? 2 : 1;
+  var wName    = winnerPid===1 ? 'Black' : 'White';
+  var lName    = loserPid ===1 ? 'Black' : 'White';
 
-  /* confetti on winner half */
-  var confCanvas=gel('confettiCanvas');
-  var confHalf=topIsWinner?eTop:eBot;
-  if(confCanvas.parentElement!==confHalf)confHalf.prepend(confCanvas);
-  /* rain on loser half */
-  var rainWrap=gel('rainWrap');
-  var rainHalf=topIsWinner?eBot:eTop;
-  if(rainWrap.parentElement!==rainHalf)rainHalf.prepend(rainWrap);
+  /* which half each player occupies on screen */
+  var eTop = gel('endTop');   /* always player 1 / Black's visual half */
+  var eBot = gel('endBot');   /* always player 2 / White's visual half */
+
+  /* assign winner/loser classes */
+  eTop.className = 'end-half end-top ' + (winnerPid===1 ? 'winner' : 'loser');
+  eBot.className = 'end-half end-bot ' + (winnerPid===2 ? 'winner' : 'loser');
+
+  /* colours */
+  eTop.style.background = winnerPid===1 ? '#0c2318' : '#2b0d0d';
+  eBot.style.background = winnerPid===2 ? '#0c2318' : '#2b0d0d';
+
+  /* text for top half (Black's half) */
+  gel('endTopLabel').textContent = 'Black';
+  if(winnerPid===1){
+    gel('endTopTitle').textContent = 'You Win!';
+    gel('endTopSub').textContent   = 'Well played, Black!';
+  } else {
+    gel('endTopTitle').textContent = 'Time Out';
+    gel('endTopSub').textContent   = lName+' loses on time';
+  }
+
+  /* text for bot half (White's half) */
+  gel('endBotLabel').textContent = 'White';
+  if(winnerPid===2){
+    gel('endBotTitle').textContent = 'You Win!';
+    gel('endBotSub').textContent   = 'Well played, White!';
+  } else {
+    gel('endBotTitle').textContent = 'Time Out';
+    gel('endBotSub').textContent   = lName+' loses on time';
+  }
+
+  /* confetti on winner's half, rain on loser's half */
+  var winnerHalf = winnerPid===1 ? eTop : eBot;
+  var loserHalf  = winnerPid===1 ? eBot : eTop;
+
+  /* rain */
+  var rainWrap = loserHalf.querySelector('.rain-wrap');
+  if(!rainWrap){ rainWrap=document.createElement('div'); rainWrap.className='rain-wrap'; loserHalf.prepend(rainWrap); }
   buildRain(rainWrap);
 
   gel('endScreen').classList.add('on');
-  setTimeout(function(){startConfetti(confCanvas)},180);
-  playEndTune(true); /* always play the 'final' tune */
-  if(navigator.vibrate)navigator.vibrate([30,50,30,50,100]);
+  setTimeout(function(){ startConfetti(winnerHalf); }, 200);
+  playEndTune(true);
+  if(navigator.vibrate) navigator.vibrate([30,50,30,50,100]);
 }
+
 function hideEnd(){
   gel('endScreen').classList.remove('on');
   stopConfetti();
-  gel('rainWrap').innerHTML='';
+  /* clear rain */
+  gel('endScreen').querySelectorAll('.rain-wrap').forEach(function(r){r.remove()});
 }
 
 /* ═══════════════════ TIME SYSTEMS ═══════════════ */
@@ -857,9 +947,11 @@ function startP(pid){
 function togglePause(){
   if(gs.phase==='idle'||gs.phase==='expired')return;
   if(gs.phase==='running'){
+    /* pausing — exit fullscreen to reveal controls */
     gs.phase='paused';stopRAF();WL.release();stopTilt();exitFS();
     gel('btnP').textContent='Resume';
   } else {
+    /* resuming — go back to fullscreen */
     gs.phase='running';lastTick=performance.now();startRAF();WL.acquire();startTilt();enterFS();
     gel('btnP').textContent='Pause';
   }
@@ -1005,7 +1097,9 @@ function closeModal(){gel('mback').classList.remove('on');modalCB=null}
 function confirmModal(){
   var inp=gel('minp'),noInp=inp.style.display==='none',val=noInp?'__ok__':inp.value.trim();
   if(!noInp&&!val){inp.focus();return}
-  closeModal();if(modalCB)modalCB(val);
+  var cb=modalCB;   /* capture BEFORE closeModal wipes it */
+  closeModal();
+  if(cb)cb(val);
 }
 
 /* ═══════════════════ TOAST / LABELS ═════════════ */
@@ -1013,15 +1107,91 @@ var toastT;
 function toast(msg){var t=gel('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on')},2500)}
 function updTapLbls(){var l=SYS[cfg.system]?SYS[cfg.system].tl:'';gel('tl1').textContent=l;gel('tl2').textContent=l}
 
+/* ═══════════════════ HOLD-TO-PAUSE ══════════════ */
+var holdTimers={1:null,2:null};
+var HOLD_MS=3000;
+
+function clearHold(pid){
+  if(holdTimers[pid]){clearTimeout(holdTimers[pid]);holdTimers[pid]=null;}
+  var h=gel('h'+pid),ring=h.querySelector('.hold-ring');if(ring)ring.remove();
+}
+
+function startHold(pid,firedCb){
+  clearHold(pid);
+  var h=gel('h'+pid);
+  var ring=document.createElement('div');ring.className='hold-ring';
+  h.appendChild(ring);
+  holdTimers[pid]=setTimeout(function(){
+    holdTimers[pid]=null;
+    if(firedCb)firedCb();
+    /* already frozen — just formally pause and show controls */
+    gs.phase='paused';WL.release();stopTilt();exitFS();
+    gel('btnP').textContent='Resume';updHalves();
+    toast('Paused — tap Resume to continue');
+  },HOLD_MS);
+}
+
 /* ═══════════════════ EVENTS ═════════════════════ */
 [['h1',1],['h2',2]].forEach(function(pair){
-  var el=gel(pair[0]),pid=pair[1],sup=false;
-  el.addEventListener('touchstart',function(e){e.preventDefault();switchTurn(pid)},{passive:false});
-  el.addEventListener('touchend',function(){sup=true;setTimeout(function(){sup=false},500)},{passive:true});
-  el.addEventListener('click',function(e){if(sup){e.stopImmediatePropagation();return}switchTurn(pid)},true);
+  var el=gel(pair[0]),pid=pair[1],sup=false,holdFired=false,froze=false;
+
+  function onPress(){
+    /* only the active player's press freezes the clock */
+    if(gs.phase==='running'&&gs.active===pid){
+      stopRAF();   /* freeze — time stops the instant finger touches */
+      froze=true;
+      holdFired=false;
+      startHold(pid,function(){holdFired=true;});
+    } else {
+      froze=false;
+    }
+  }
+
+  function onRelease(){
+    var fired=holdFired;
+    holdFired=false;
+    clearHold(pid);
+    if(fired){
+      /* hold completed → already paused by startHold timeout, do nothing */
+      froze=false;
+      return;
+    }
+    if(froze){
+      froze=false;
+      /* short tap: do the turn switch — this restarts RAF on the other player */
+      switchTurn(pid);
+    } else {
+      /* tap on inactive half, idle tap, etc — normal path */
+      switchTurn(pid);
+    }
+  }
+
+  el.addEventListener('touchstart',function(e){
+    e.preventDefault();
+    sup=false;
+    onPress();
+  },{passive:false});
+  el.addEventListener('touchend',function(){
+    sup=true;setTimeout(function(){sup=false},500);
+    onRelease();
+  },{passive:true});
+  el.addEventListener('touchcancel',function(){
+    clearHold(pid);holdFired=false;
+    /* if we froze the clock, restore it */
+    if(froze){froze=false;if(gs.phase==='running')startRAF();}
+  },{passive:true});
+  el.addEventListener('click',function(e){if(sup)e.stopImmediatePropagation();},true);
+  el.addEventListener('mousedown',function(){onPress();});
+  el.addEventListener('mouseup',function(){onRelease();});
+  el.addEventListener('mouseleave',function(){
+    clearHold(pid);
+    if(froze&&!holdFired){froze=false;holdFired=false;if(gs.phase==='running')startRAF();}
+    holdFired=false;
+  });
 });
+
 gel('btnR').addEventListener('click',resetGame);
-gel('btnP').addEventListener('click',function(){if(isFull)exitFS();togglePause()});
+gel('btnP').addEventListener('click',togglePause);
 gel('btnS').addEventListener('click',showSettings);
 gel('btnBk').addEventListener('click',showClock);
 gel('btnPl').addEventListener('click',applyAndPlay);
@@ -1040,9 +1210,9 @@ document.addEventListener('keydown',function(e){
   if(!gel('sp').classList.contains('hidden'))return;
   if(gel('mback').classList.contains('on'))return;
   if(e.code==='Space'||e.code==='Enter'){e.preventDefault();if(gs.active!==null)switchTurn(gs.active);else switchTurn(2)}
-  if(e.code==='KeyP'){if(isFull)exitFS();togglePause()}
+  if(e.code==='KeyP'){togglePause();}
   if(e.code==='KeyR')resetGame();
-  if(e.code==='Escape'){if(isFull)exitFS()}
+  if(e.code==='Escape'){exitFS();}
 });
 
 /* ═══════════════════ INIT ═══════════════════════ */
