@@ -703,7 +703,52 @@ function hideEnd(){
   gel('endScreen').querySelectorAll('.rain-wrap').forEach(function(r){r.remove()});
 }
 
-/* ═══════════════════ TIME SYSTEMS ═══════════════ */
+/* ═══════════════════ VOICE ══════════════════════ */
+var femVoice=null,voiceWarm=false;
+function initVoice(){
+  if(!window.speechSynthesis)return;
+  function pickVoice(){
+    var voices=speechSynthesis.getVoices();
+    if(!voices.length)return;
+    var pref=['samantha','google uk english female','karen','moira','tessa','fiona','victoria',
+              'zira','hazel','linda','heera'];
+    var en=voices.filter(function(v){return /en/i.test(v.lang)});
+    for(var i=0;i<pref.length;i++){
+      var found=en.find(function(v){return v.name.toLowerCase().indexOf(pref[i])!==-1});
+      if(found){femVoice=found;break;}
+    }
+    if(!femVoice)femVoice=en[0]||voices[0];
+  }
+  pickVoice();
+  speechSynthesis.onvoiceschanged=pickVoice;
+}
+function warmVoice(){
+  /* Called on first user tap — sends a zero-volume word to unlock the engine.
+     Uses cancel() first so the warm utterance itself doesn't linger in the queue. */
+  if(voiceWarm||!window.speechSynthesis)return;
+  voiceWarm=true;
+  speechSynthesis.cancel();
+  var w=new SpeechSynthesisUtterance('go');
+  w.volume=0;w.rate=2;
+  if(femVoice)w.voice=femVoice;
+  speechSynthesis.speak(w);
+}
+function speakByoYomi(){
+  if(!window.speechSynthesis)return;
+  /* cancel() clears any residual queue — if engine is idle this is instant (<5ms).
+     The 3-second stall previously came from a silent ' ' utterance still playing. */
+  speechSynthesis.cancel();
+  /* Pronunciation: Japanese "Byo" is a palatalized b+yo — like "b" then "yo" in yoga,
+     run together fast. "b'yoh" with apostrophe gives a tiny schwa that creates the
+     palatalization without stretching into "beee". "yoh-mee" for the second word. */
+  var u=new SpeechSynthesisUtterance("b'yoh  yoh-mee");
+  u.rate=0.95;
+  u.pitch=1.24;
+  u.volume=1;
+  if(femVoice)u.voice=femVoice;
+  speechSynthesis.speak(u);
+}
+initVoice();
 var SYS={
   japanese:{id:'japanese',name:'Japanese Byo-Yomi',icon:'🎌',sd:'Main time + timed periods per move',
     def:{mainTime:180,byoTime:30,byoCount:5},
@@ -877,7 +922,7 @@ function tickMs(dt){
   if(sys==='japanese'){
     if(!p.inByo){
       p.main-=dt;
-      if(p.main<=0){p.main=0;p.inByo=true;setDanger(pid,false)}
+      if(p.main<=0){p.main=0;p.inByo=true;setDanger(pid,false);speakByoYomi()}
       else if(p.main<=10000){beepIfNeeded(pid,p.main,10000);setDanger(pid,true)}
       else setDanger(pid,false);
     }
@@ -893,7 +938,7 @@ function tickMs(dt){
   } else if(sys==='canadian'){
     if(!p.inByo){
       p.main-=dt;
-      if(p.main<=0){p.main=0;p.inByo=true;p.byoLeft=p.byoTotal;p.movInPer=0;setDanger(pid,false)}
+      if(p.main<=0){p.main=0;p.inByo=true;p.byoLeft=p.byoTotal;p.movInPer=0;setDanger(pid,false);speakByoYomi()}
       else if(p.main<=10000){beepIfNeeded(pid,p.main,10000);setDanger(pid,true)}else setDanger(pid,false);
     } else {
       p.byoLeft-=dt;
@@ -924,6 +969,8 @@ function switchTurn(fromPid){
   if(gs.phase==='expired')return;
   if(gs.phase==='idle'){
     initP();updDisplay(1);updDisplay(2);setDanger(1,false);setDanger(2,false);lastBeepSec={1:-1,2:-1};
+    /* warm up speech engine on first interaction */
+    warmVoice();
     playPop();vibrate();ripple(fromPid);startP(fromPid===1?2:1);return;
   }
   if(gs.phase==='paused')return;
@@ -1109,7 +1156,7 @@ function updTapLbls(){var l=SYS[cfg.system]?SYS[cfg.system].tl:'';gel('tl1').tex
 
 /* ═══════════════════ HOLD-TO-PAUSE ══════════════ */
 var holdTimers={1:null,2:null};
-var HOLD_MS=3000;
+var HOLD_MS=1000;
 
 function clearHold(pid){
   if(holdTimers[pid]){clearTimeout(holdTimers[pid]);holdTimers[pid]=null;}
