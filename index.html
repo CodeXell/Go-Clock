@@ -253,7 +253,7 @@ html,body{
 .go-again{background:var(--acc);color:var(--bg)}.go-again:active{filter:brightness(.88)}
 .go-stats{background:transparent;border:1px solid var(--bdr2);color:var(--fg)}.go-stats:active{background:var(--bdr)}
 
-/* ── STATS SHEET ----*/
+/* ── STATS SHEET (iOS slide-up) ──────────────────── */
 #statsSheet{
   position:fixed;inset:0;z-index:300;
   background:rgba(0,0,0,.52);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
@@ -825,51 +825,96 @@ function hideStats(){
 }
 
 /* ═══════════════════ VOICE ══════════════════════ */
-var femVoice=null,voiceWarm=false;
-function initVoice(){
-  if(!window.speechSynthesis)return;
-  function pickVoice(){
-    var voices=speechSynthesis.getVoices();
-    if(!voices.length)return;
-    var pref=['samantha','google uk english female','karen','moira','tessa','fiona','victoria',
-              'zira','hazel','linda','heera'];
-    var en=voices.filter(function(v){return /en/i.test(v.lang)});
-    for(var i=0;i<pref.length;i++){
-      var found=en.find(function(v){return v.name.toLowerCase().indexOf(pref[i])!==-1});
-      if(found){femVoice=found;break;}
-    }
-    if(!femVoice)femVoice=en[0]||voices[0];
-  }
-  pickVoice();
-  speechSynthesis.onvoiceschanged=pickVoice;
-}
-function warmVoice(){
-  /* Called on first user tap — sends a zero-volume word to unlock the engine.
-     Uses cancel() first so the warm utterance itself doesn't linger in the queue. */
-  if(voiceWarm||!window.speechSynthesis)return;
-  voiceWarm=true;
-  speechSynthesis.cancel();
-  var w=new SpeechSynthesisUtterance('go');
-  w.volume=0;w.rate=2;
-  if(femVoice)w.voice=femVoice;
-  speechSynthesis.speak(w);
-}
+/* ═══════════════════ BYO-YOMI VOICE (Web Audio) ═══
+   Pure Web Audio synthesis — no TTS engine, no distortion.
+   Shapes two syllable groups "Byo" and "Yomi" using filtered
+   noise bursts + pitched sine tones to mimic a calm feminine voice.
+══════════════════════════════════════════════════════ */
 function speakByoYomi(){
-  if(!window.speechSynthesis)return;
-  /* cancel() clears any residual queue — if engine is idle this is instant (<5ms).
-     The 3-second stall previously came from a silent ' ' utterance still playing. */
-  speechSynthesis.cancel();
-  /* Pronunciation: Japanese "Byo" is a palatalized b+yo — like "b" then "yo" in yoga,
-     run together fast. "b'yoh" with apostrophe gives a tiny schwa that creates the
-     palatalization without stretching into "beee". "yoh-mee" for the second word. */
-  var u=new SpeechSynthesisUtterance("byo-yomi");
-  u.rate=0.95;
-  u.pitch=1.24;
-  u.volume=1;
-  if(femVoice)u.voice=femVoice;
-  speechSynthesis.speak(u);
+  try{
+    var c=getActx(), now=c.currentTime;
+    /* Master gain — overall volume */
+    var master=c.createGain();
+    master.gain.setValueAtTime(0.72,now);
+    master.connect(c.destination);
+
+    /* Helper: play a voiced "syllable" — a pitched tone with a smooth envelope
+       freq    = fundamental pitch (Hz)
+       start   = start time (s from now)
+       dur     = note duration (s)
+       vowelHz = formant filter centre (shapes the vowel character) */
+    function syllable(freq,start,dur,vowelHz){
+      /* Carrier oscillator */
+      var osc=c.createOscillator();
+      osc.type='sawtooth';
+      osc.frequency.setValueAtTime(freq,now+start);
+      /* slight pitch glide down — natural voice quality */
+      osc.frequency.linearRampToValueAtTime(freq*0.93,now+start+dur);
+
+      /* Vowel formant filter */
+      var filt=c.createBiquadFilter();
+      filt.type='bandpass';
+      filt.frequency.setValueAtTime(vowelHz,now+start);
+      filt.Q.value=2.8;
+
+      /* Breathiness: filtered noise layer */
+      var bufSize=c.sampleRate*dur;
+      var buf=c.createBuffer(1,bufSize,c.sampleRate);
+      var data=buf.getChannelData(0);
+      for(var i=0;i<bufSize;i++) data[i]=(Math.random()*2-1)*0.18;
+      var noise=c.createBufferSource();
+      noise.buffer=buf;
+      var nFilt=c.createBiquadFilter();
+      nFilt.type='bandpass';
+      nFilt.frequency.value=vowelHz*1.4;
+      nFilt.Q.value=1.4;
+
+      /* Envelope */
+      var env=c.createGain();
+      var att=0.025, rel=dur*0.35;
+      env.gain.setValueAtTime(0,now+start);
+      env.gain.linearRampToValueAtTime(1,now+start+att);
+      env.gain.setValueAtTime(1,now+start+dur-rel);
+      env.gain.exponentialRampToValueAtTime(0.001,now+start+dur);
+
+      osc.connect(filt);  filt.connect(env);
+      noise.connect(nFilt); nFilt.connect(env);
+      env.connect(master);
+
+      osc.start(now+start); osc.stop(now+start+dur+0.02);
+      noise.start(now+start); noise.stop(now+start+dur+0.02);
+    }
+
+    /* "B" consonant — short noise burst */
+    function consonant(start){
+      var buf=c.createBuffer(1,Math.floor(c.sampleRate*0.04),c.sampleRate);
+      var d=buf.getChannelData(0);
+      for(var i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*0.5;
+      var src=c.createBufferSource(); src.buffer=buf;
+      var filt=c.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=400;
+      var g=c.createGain();
+      g.gain.setValueAtTime(0.35,now+start);
+      g.gain.exponentialRampToValueAtTime(0.001,now+start+0.04);
+      src.connect(filt); filt.connect(g); g.connect(master);
+      src.start(now+start); src.stop(now+start+0.05);
+    }
+
+    /* Timing — calm, deliberate pace like OGS */
+    /* "Byo" — 220Hz fundamental, "yo" vowel formant ~800Hz */
+    consonant(0.0);
+    syllable(220, 0.02, 0.22, 820);
+
+    /* brief gap */
+    /* "Yo" of "Yomi" */
+    syllable(210, 0.30, 0.18, 820);
+    /* "mi" — higher formant, slightly brighter */
+    syllable(200, 0.48, 0.20, 1100);
+
+  }catch(e){}
 }
-initVoice();
+/* warmVoice kept as no-op for API compat */
+var voiceWarm=false;
+function warmVoice(){voiceWarm=true;}
 var SYS={
   japanese:{id:'japanese',name:'Japanese Byo-Yomi',icon:'🎌',sd:'Main time + timed periods per move',
     def:{mainTime:180,byoTime:30,byoCount:5},
