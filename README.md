@@ -1,5 +1,6 @@
 # BadukClock
-A simple, functional and convenient clock for games like Go, Chess, Shogi and more with advanced settings.
+A simple, functional and convenient clock for games like Go, Chess, Shogi and more with advanced settings.  
+Use [BadukClock](https://codexell.github.io/BadukClock) directly from browser. PWA with icon is also available.
 
 ### Time Systems
 - Japanese Byo-Yomi (Fixed main time, periods of overtime)
