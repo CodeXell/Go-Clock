@@ -227,6 +227,62 @@ html,body{
 }
 @keyframes fall{to{transform:translateY(120vh)}}
 
+/* ── See Stats button in end divider ────────────── */
+.end-divider{gap:10px;flex-wrap:wrap}
+.stats-btn-end{
+  background:transparent;border:1px solid rgba(255,255,255,.22);color:var(--fg);
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;letter-spacing:.1em;
+  text-transform:uppercase;padding:10px 20px;border-radius:100px;cursor:pointer;
+  white-space:nowrap;-webkit-appearance:none;appearance:none;transition:all .18s;
+}
+.stats-btn-end:active{background:rgba(255,255,255,.12)}
+
+/* ── GAME OVER SCREEN (double pass) ─────────────── */
+#gameOverScreen{
+  position:fixed;inset:0;z-index:210;
+  background:rgba(10,10,10,.92);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .38s ease;
+}
+#gameOverScreen.on{opacity:1;pointer-events:all}
+.go-inner{display:flex;flex-direction:column;align-items:center;gap:14px;padding:40px 32px;text-align:center}
+.go-title{font-family:'Playfair Display',serif;font-size:clamp(42px,14vw,88px);font-weight:900;letter-spacing:-.03em;color:var(--fg)}
+.go-sub{font-size:13px;letter-spacing:.18em;text-transform:uppercase;opacity:.36;margin-bottom:8px}
+.go-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.go-btn{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;padding:13px 28px;border-radius:100px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:all .18s;border:none}
+.go-again{background:var(--acc);color:var(--bg)}.go-again:active{filter:brightness(.88)}
+.go-stats{background:transparent;border:1px solid var(--bdr2);color:var(--fg)}.go-stats:active{background:var(--bdr)}
+
+/* ── STATS SHEET ----*/
+#statsSheet{
+  position:fixed;inset:0;z-index:300;
+  background:rgba(0,0,0,.52);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  opacity:0;pointer-events:none;transition:opacity .3s ease;
+  display:flex;align-items:flex-end;justify-content:center;
+}
+#statsSheet.on{opacity:1;pointer-events:all}
+#statsSheetInner{
+  background:#1c1c1e;border-radius:20px 20px 0 0;width:100%;max-width:560px;
+  padding:10px 24px max(32px,env(safe-area-inset-bottom,32px));
+  transform:translateY(100%);transition:transform .42s cubic-bezier(.32,1,.28,1);
+  touch-action:none;will-change:transform;
+}
+#statsSheet.on #statsSheetInner{transform:translateY(0)}
+.sheet-handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.22);margin:0 auto 20px;cursor:grab}
+.sheet-title{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:22px;text-align:center;letter-spacing:-.01em}
+.sheet-rows{display:flex;flex-direction:column}
+.sheet-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.sheet-row:last-child{border-bottom:none}
+.sheet-row-lbl{font-size:14px;opacity:.55}
+.sheet-row-val{font-family:'DM Mono',monospace;font-size:15px;font-weight:500;letter-spacing:.04em}
+.sheet-row-val.accent{color:var(--acc)}
+.sheet-close{width:100%;margin-top:18px;background:rgba(255,255,255,.07);border:none;color:var(--fg);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;letter-spacing:.06em;padding:14px;border-radius:14px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .18s}
+.sheet-close:active{background:rgba(255,255,255,.14)}
+
+/* ── SWIPE PASS HINT ─────────────────────────────── */
+.swipehint{font-size:clamp(8px,1.5vw,10px);letter-spacing:.15em;text-transform:uppercase;opacity:0;pointer-events:none;text-align:center;margin-top:3px;transition:opacity .4s ease}
+.half.act .swipehint{opacity:.15}
+
 /* ── TOAST ───────────────────────────────────── */
 .toast{position:fixed;bottom:max(28px,env(safe-area-inset-bottom,28px));left:50%;transform:translateX(-50%) translateY(80px);background:var(--fg);color:var(--bg);font-size:13px;font-weight:500;padding:11px 22px;border-radius:100px;z-index:600;transition:transform .38s var(--ease);white-space:nowrap;max-width:calc(100vw - 40px);text-align:center}
 .toast.on{transform:translateX(-50%) translateY(0)}
@@ -324,7 +380,8 @@ html,body{
       </div>
       <div class="bprog" id="pr1" style="display:none"><div class="bfill" id="pf1"></div></div>
       <div class="tapbox" id="th1"><div class="tapb">Tap to Begin</div><div class="tapb s2" id="tl1">Byo-Yomi</div></div>
-      <div class="holdhint">Hold 3s to pause &amp; access controls</div>
+      <div class="holdhint">Hold 1s to pause &amp; access controls</div>
+      <div class="swipehint">↓ Swipe toward opponent to pass</div>
     </div>
   </div>
 
@@ -349,14 +406,14 @@ html,body{
       </div>
       <div class="bprog" id="pr2" style="display:none"><div class="bfill" id="pf2"></div></div>
       <div class="tapbox" id="th2"><div class="tapb">Tap to Begin</div><div class="tapb s2" id="tl2">Byo-Yomi</div></div>
-      <div class="holdhint">Hold 3s to pause &amp; access controls</div>
+      <div class="holdhint">Hold 1s to pause &amp; access controls</div>
+      <div class="swipehint">↑ Swipe toward opponent to pass</div>
     </div>
   </div>
 </div>
 
 <!-- END SCREEN -->
 <div id="endScreen">
-  <!-- top half: faces player sitting at top of device (Black by default) -->
   <div class="end-half end-top" id="endTop">
     <div class="end-inner">
       <div class="end-label" id="endTopLabel">Black</div>
@@ -364,19 +421,38 @@ html,body{
       <div class="end-sub"   id="endTopSub"></div>
     </div>
   </div>
-
-  <!-- divider with Play Again -->
   <div class="end-divider">
     <button class="play-again-btn" id="btnPA">▶ Play Again</button>
+    <button class="stats-btn-end" id="btnStatEnd">See Stats</button>
   </div>
-
-  <!-- bottom half: faces player sitting at bottom of device (White by default) -->
   <div class="end-half end-bot" id="endBot">
     <div class="end-inner">
       <div class="end-label" id="endBotLabel">White</div>
       <div class="end-title" id="endBotTitle">Time Out</div>
       <div class="end-sub"   id="endBotSub"></div>
     </div>
+  </div>
+</div>
+
+<!-- GAME OVER SCREEN (double pass) -->
+<div id="gameOverScreen">
+  <div class="go-inner">
+    <div class="go-title">Game Over</div>
+    <div class="go-sub">Both players passed</div>
+    <div class="go-btns">
+      <button class="go-btn go-again" id="btnGOAgain">▶ Play Again</button>
+      <button class="go-btn go-stats" id="btnGOStats">See Stats</button>
+    </div>
+  </div>
+</div>
+
+<!-- STATS SHEET (iOS-style slide-up) -->
+<div id="statsSheet">
+  <div id="statsSheetInner">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Game Stats</div>
+    <div class="sheet-rows" id="sheetRows"></div>
+    <button class="sheet-close" id="btnSheetClose">Done</button>
   </div>
 </div>
 
@@ -699,8 +775,53 @@ function showEnd(winnerPid){
 function hideEnd(){
   gel('endScreen').classList.remove('on');
   stopConfetti();
-  /* clear rain */
   gel('endScreen').querySelectorAll('.rain-wrap').forEach(function(r){r.remove()});
+}
+
+/* ═══════════════════ GAME OVER (double pass) ════ */
+function showGameOver(){
+  gel('gameOverScreen').classList.add('on');
+  playEndTune(false);
+  if(navigator.vibrate)navigator.vibrate([40,60,40]);
+}
+function hideGameOver(){gel('gameOverScreen').classList.remove('on')}
+
+/* ═══════════════════ STATS SHEET ════════════════ */
+function fmtDur(ms){
+  if(ms<0)ms=0;
+  var s=Math.round(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  if(h>0)return h+'h '+m+'m '+sec+'s';
+  if(m>0)return m+'m '+sec+'s';
+  return sec+'s';
+}
+function buildStats(){
+  var st=gs.stats;
+  var totalMs=Date.now()-st.startMs;
+  var p1avg=st.p1Moves>0?Math.round(st.p1Used/st.p1Moves):0;
+  var p2avg=st.p2Moves>0?Math.round(st.p2Used/st.p2Moves):0;
+  var rows=[
+    {lbl:'Total game time',       val:fmtDur(totalMs)},
+    {lbl:'Total moves',           val:String(gs.moves)},
+    {lbl:'Black — moves made',    val:String(st.p1Moves)},
+    {lbl:'Black — avg per move',  val:fmtDur(p1avg),  accent:true},
+    {lbl:'White — moves made',    val:String(st.p2Moves)},
+    {lbl:'White — avg per move',  val:fmtDur(p2avg),  accent:true},
+  ];
+  var c=gel('sheetRows');c.innerHTML='';
+  rows.forEach(function(r){
+    var d=document.createElement('div');d.className='sheet-row';
+    d.innerHTML='<span class="sheet-row-lbl">'+r.lbl+'</span>'
+      +'<span class="sheet-row-val'+(r.accent?' accent':'')+'">'+r.val+'</span>';
+    c.appendChild(d);
+  });
+}
+/* sheet drag listeners attached at init time (see bottom of script) */
+var sheetDragY0=0,sheetDragCur=0,sheetDragging=false;
+function showStats(){buildStats();gel('statsSheet').classList.add('on');}
+function hideStats(){
+  gel('statsSheet').classList.remove('on');
+  gel('statsSheetInner').style.transform='';
+  gel('statsSheetInner').style.transition='';
 }
 
 /* ═══════════════════ VOICE ══════════════════════ */
@@ -741,7 +862,7 @@ function speakByoYomi(){
   /* Pronunciation: Japanese "Byo" is a palatalized b+yo — like "b" then "yo" in yoga,
      run together fast. "b'yoh" with apostrophe gives a tiny schwa that creates the
      palatalization without stretching into "beee". "yoh-mee" for the second word. */
-  var u=new SpeechSynthesisUtterance("byaw yomee");
+  var u=new SpeechSynthesisUtterance("b'yoh  yoh-mee");
   u.rate=0.95;
   u.pitch=1.24;
   u.volume=1;
@@ -795,7 +916,10 @@ function saveLayout(l){localStorage.setItem('gc5_l',l)}
 var cfg=loadSettings(),presets=loadPresets();
 
 /* ═══════════════════ GAME STATE ═════════════════ */
-var gs={phase:'idle',active:null,p1:null,p2:null,moves:0};
+var gs={phase:'idle',active:null,p1:null,p2:null,moves:0,
+  passed:{1:false,2:false},          /* pass state per player */
+  stats:{startMs:0,p1Used:0,p2Used:0,p1Moves:0,p2Moves:0,tickStart:0}
+};
 var rafId=null,lastTick=0;
 
 function mkP(){
@@ -807,7 +931,12 @@ function mkP(){
   if(sys==='fischer')  return{main:s.mainTime*1000+extra,inc:s.increment*1000};
   if(sys==='simple')   return{main:s.moveTime*1000,movTot:s.moveTime*1000};
 }
-function initP(){gs.p1=mkP();gs.p2=mkP();gs.moves=0;updMVC()}
+function initP(){
+  gs.p1=mkP();gs.p2=mkP();gs.moves=0;
+  gs.passed={1:false,2:false};
+  gs.stats={startMs:Date.now(),p1Used:0,p2Used:0,p1Moves:0,p2Moves:0,tickStart:0};
+  updMVC();
+}
 
 /* ═══════════════════ FORMAT TIME ════════════════ */
 function fmtTime(ms){
@@ -958,6 +1087,29 @@ function tickMs(dt){
   gel('ms'+(pid===1?2:1)).textContent='';
 }
 
+function doPass(pid){
+  if(gs.phase!=='running')return;
+  if(gs.active!==pid)return;
+  /* accumulate time used */
+  var turnMs=performance.now()-gs.stats.tickStart;
+  if(pid===1){gs.stats.p1Used+=turnMs;gs.stats.p1Moves++;}
+  else{gs.stats.p2Used+=turnMs;gs.stats.p2Moves++;}
+  gs.passed[pid]=true;
+  gs.moves+=1;
+  /* check double-pass */
+  var otherPid=pid===1?2:1;
+  if(gs.passed[otherPid]){
+    /* both passed — game over by agreement */
+    stopRAF();WL.release();stopTilt();exitFS();
+    gs.phase='expired';updHalves();updMVC();
+    showGameOver();
+    return;
+  }
+  toast((pid===1?'Black':'White')+' passes');
+  playPop();ripple(pid);
+  startP(otherPid);updMVC();
+}
+
 function expire(){
   stopRAF();WL.release();stopTilt();exitFS();
   gs.phase='expired';updDisplay(gs.active);updHalves();updMVC();
@@ -975,6 +1127,11 @@ function switchTurn(fromPid){
   }
   if(gs.phase==='paused')return;
   if(gs.active!==fromPid)return;
+  /* accumulate time used by this player */
+  var turnMs=performance.now()-gs.stats.tickStart;
+  if(fromPid===1){gs.stats.p1Used+=turnMs;gs.stats.p1Moves++;}
+  else{gs.stats.p2Used+=turnMs;gs.stats.p2Moves++;}
+  gs.passed[fromPid]=false; /* moving clears pass flag */
   var p=fromPid===1?gs.p1:gs.p2,sys=cfg.system;
   if(sys==='japanese'&&p.inByo)p.byoLeft=p.byoTotal;
   if(sys==='canadian'&&p.inByo){p.movInPer+=1;if(p.movInPer>=p.movReq){p.movInPer=0;p.byoLeft=p.byoTotal}}
@@ -987,6 +1144,7 @@ function switchTurn(fromPid){
 function startP(pid){
   if(cfg.system==='simple'){var np=pid===1?gs.p1:gs.p2;np.main=np.movTot}
   gs.active=pid;gs.phase='running';lastBeepSec[pid]=-1;
+  gs.stats.tickStart=performance.now();
   updHalves();stopRAF();lastTick=performance.now();startRAF();
   WL.acquire();startTilt();enterFS();
 }
@@ -1006,7 +1164,7 @@ function togglePause(){
 }
 
 function resetGame(){
-  stopRAF();WL.release();stopTilt();exitFS();hideEnd();
+  stopRAF();WL.release();stopTilt();exitFS();hideEnd();hideGameOver();hideStats();
   gs.phase='idle';gs.active=null;initP();
   gel('btnP').textContent='Pause';setDanger(1,false);setDanger(2,false);lastBeepSec={1:-1,2:-1};
   updDisplay(1);updDisplay(2);updHalves();updTapLbls();updMVC();
@@ -1181,11 +1339,14 @@ function startHold(pid,firedCb){
 /* ═══════════════════ EVENTS ═════════════════════ */
 [['h1',1],['h2',2]].forEach(function(pair){
   var el=gel(pair[0]),pid=pair[1],sup=false,holdFired=false,froze=false;
+  var swipeY0=0,swipeYEnd=0,swipeMoved=false;
+  /* pid1 is top half (rotated) — swipe DOWN on screen = toward opponent (visually UP for that player)
+     pid2 is bot half — swipe UP on screen = toward opponent */
+  var SWIPE_THRESH=55; /* px needed to register as swipe-pass */
 
   function onPress(){
-    /* only the active player's press freezes the clock */
     if(gs.phase==='running'&&gs.active===pid){
-      stopRAF();   /* freeze — time stops the instant finger touches */
+      stopRAF();
       froze=true;
       holdFired=false;
       startHold(pid,function(){holdFired=true;});
@@ -1193,42 +1354,43 @@ function startHold(pid,firedCb){
       froze=false;
     }
   }
-
   function onRelease(){
     var fired=holdFired;
     holdFired=false;
     clearHold(pid);
-    if(fired){
-      /* hold completed → already paused by startHold timeout, do nothing */
+    if(fired){froze=false;return;}
+    /* check swipe-pass */
+    var dy=swipeYEnd-swipeY0; /* positive = finger moved down screen */
+    var isPass=(pid===1 && dy> SWIPE_THRESH)  /* top player swipes DOWN (toward mid) */
+             ||(pid===2 && dy<-SWIPE_THRESH); /* bot player swipes UP (toward mid) */
+    if(swipeMoved&&isPass&&gs.phase==='running'&&gs.active===pid){
       froze=false;
+      doPass(pid);
       return;
     }
-    if(froze){
-      froze=false;
-      /* short tap: do the turn switch — this restarts RAF on the other player */
-      switchTurn(pid);
-    } else {
-      /* tap on inactive half, idle tap, etc — normal path */
-      switchTurn(pid);
-    }
+    if(froze){froze=false;switchTurn(pid);}
+    else switchTurn(pid);
   }
 
   el.addEventListener('touchstart',function(e){
-    e.preventDefault();
-    sup=false;
+    e.preventDefault();sup=false;
+    swipeY0=e.touches[0].clientY;swipeYEnd=swipeY0;swipeMoved=false;
     onPress();
   },{passive:false});
+  el.addEventListener('touchmove',function(e){
+    swipeYEnd=e.touches[0].clientY;
+    if(Math.abs(swipeYEnd-swipeY0)>8)swipeMoved=true;
+  },{passive:true});
   el.addEventListener('touchend',function(){
     sup=true;setTimeout(function(){sup=false},500);
     onRelease();
   },{passive:true});
   el.addEventListener('touchcancel',function(){
-    clearHold(pid);holdFired=false;
-    /* if we froze the clock, restore it */
+    clearHold(pid);holdFired=false;swipeMoved=false;
     if(froze){froze=false;if(gs.phase==='running')startRAF();}
   },{passive:true});
   el.addEventListener('click',function(e){if(sup)e.stopImmediatePropagation();},true);
-  el.addEventListener('mousedown',function(){onPress();});
+  el.addEventListener('mousedown',function(){swipeY0=0;swipeYEnd=0;swipeMoved=false;onPress();});
   el.addEventListener('mouseup',function(){onRelease();});
   el.addEventListener('mouseleave',function(){
     clearHold(pid);
@@ -1244,6 +1406,10 @@ gel('btnBk').addEventListener('click',showClock);
 gel('btnPl').addEventListener('click',applyAndPlay);
 gel('btnAP').addEventListener('click',savePreset);
 gel('btnPA').addEventListener('click',resetGame);
+gel('btnGOAgain').addEventListener('click',resetGame);
+gel('btnGOStats').addEventListener('click',showStats);
+gel('btnStatEnd').addEventListener('click',showStats);
+gel('btnSheetClose').addEventListener('click',hideStats);
 gel('lStk').addEventListener('click',function(){setLayout('stacked')});
 gel('lSbs').addEventListener('click',function(){setLayout('side')});
 gel('cstrig').addEventListener('click',toggleDD);
@@ -1267,6 +1433,29 @@ applyLayout(curLayout);
 initP();
 updDisplay(1);updDisplay(2);
 updHalves();updTapLbls();updMVC();
+
+/* attach sheet drag-to-dismiss listeners after DOM ready */
+(function(){
+  var inner=gel('statsSheetInner');
+  inner.addEventListener('touchstart',function(e){
+    sheetDragging=true;sheetDragY0=e.touches[0].clientY;sheetDragCur=0;
+    inner.style.transition='none';
+  },{passive:true});
+  inner.addEventListener('touchmove',function(e){
+    if(!sheetDragging)return;
+    var dy=e.touches[0].clientY-sheetDragY0;
+    if(dy<0)dy=0;
+    sheetDragCur=dy;
+    inner.style.transform='translateY('+dy+'px)';
+    e.preventDefault();
+  },{passive:false});
+  inner.addEventListener('touchend',function(){
+    sheetDragging=false;
+    inner.style.transition='';
+    if(sheetDragCur>90)hideStats();
+    else inner.style.transform='';
+  },{passive:true});
+})();
 </script>
 </body>
 </html>
