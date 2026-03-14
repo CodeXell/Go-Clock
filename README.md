@@ -10,16 +10,16 @@ A simple, functional and convenient clock for games like Go, Chess, Shogi and mo
 
 ### Layout
 **Stacked**
-Each side facing opposite, great for standard mobile devices laid down between players
+- Each side facing opposite, great for standard mobile devices laid down between players
 **Side By Side**
-Both clocks face the same way side by side, less convenient but better for use on desktop devices.
+- Both clocks face the same way side by side, less convenient but better for use on desktop devices.
 
 ### Gestures
-Tap to pause your clock and start yout opponent's.
-Hold your finger on the clock for 3 seconds to pause both clocks.
-Swipe up on your clock to pass.
+- Tap to pause your clock and start yout opponent's.
+- Hold your finger on the clock for 3 seconds to pause both clocks.
+- Swipe up on your clock to pass.
 
 ### Additional Features
-Warning beeps on last 10 seconds.
-Win/Lose screen divided into half facing correct players.
-Stats screen showing Average Time Per Move, Total Time Taken, and Moves.
+- Warning beeps on last 10 seconds.
+- Win/Lose screen divided into half facing correct players.
+- Stats screen showing Average Time Per Move, Total Time Taken, and Moves.
